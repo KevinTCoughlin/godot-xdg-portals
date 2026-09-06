@@ -105,6 +105,17 @@ jobs:
           chmod +x "$archive"
           sudo mv "$archive" /usr/local/bin/godot
 
+      # Shares the key with the "Native build (editor)" job above: both call
+      # scripts/build.sh --target editor, so both populate build-editor/_deps
+      # with the same pinned godot-cpp checkout. Without this the job rebuilt
+      # godot-cpp from scratch on every run (~7 min) and was the long pole on
+      # every pull request.
+      - name: Cache godot-cpp checkout
+        uses: actions/cache@v6
+        with:
+          path: build-editor/_deps
+          key: godot-cpp-editor-${{ hashFiles('CMakeLists.txt') }}
+
       - name: Build the editor-target library
         run: ./scripts/build.sh --target editor
 
