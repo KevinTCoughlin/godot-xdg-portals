@@ -31,7 +31,7 @@ jobs:
       name: github-pages
       url: ${{ steps.deploy.outputs.page_url }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # The site is a single static file with no build step and no external
       # assets, so there is nothing to compile — site/ is uploaded as-is.
@@ -45,7 +45,13 @@ jobs:
           fi
           echo "site/index.html is self-contained."
 
+      # `enablement: true` turns Pages on through the API when it has never been
+      # configured, instead of failing with "Get Pages site failed". Without it
+      # the first deploy needs a human to set Settings -> Pages -> Source to
+      # "GitHub Actions" before this workflow can ever succeed.
       - uses: actions/configure-pages@v5
+        with:
+          enablement: true
 
       - uses: actions/upload-pages-artifact@v3
         with:
