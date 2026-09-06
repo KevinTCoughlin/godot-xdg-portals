@@ -51,6 +51,12 @@ echo "Building the fake portal fixture…"
 cc -std=c11 -Wall -Wextra -O1 -o "$WORK_DIR/fake-portal" \
 	"$REPO_ROOT/tests/native/fake_portal.c" $(pkg-config --cflags --libs gio-2.0)
 
+# The suite refers to `class_name` types (XDGPortalBackend and friends), which
+# are only resolvable once Godot has written the global class cache. On a fresh
+# checkout .godot/ does not exist yet, so this import pass is required — without
+# it the script fails to parse before a single check runs.
+"$GODOT_BIN" --headless --path "$REPO_ROOT" --import >/dev/null
+
 export WORK_DIR REPO_ROOT GODOT_BIN
 
 dbus-run-session -- bash -euo pipefail -c '
