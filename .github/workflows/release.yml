@@ -1,0 +1,101 @@
+# SPDX-FileCopyrightText: 2026 Kevin Coughlin
+#
+# SPDX-License-Identifier: MIT
+
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to package, without the leading v (e.g. 0.1.0)"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    name: Package Linux x86-64 addon archive
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Resolve version
+        id: version
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            version="${{ inputs.version }}"
+          else
+            version="${GITHUB_REF_NAME#v}"
+          fi
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+          echo "Packaging version ${version}"
+
+      - name: Install GLib/GIO development headers
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y \
+            build-essential cmake pkg-config libglib2.0-dev
+
+      # The editor target ships too: without it the addon falls back to the null
+      # backend when a project is run from the Godot editor.
+      - name: Build the release, debug and editor libraries
+        run: |
+          ./scripts/build.sh --target template_release
+          ./scripts/build.sh --target template_debug
+          ./scripts/build.sh --target editor
+
+      - name: Stage the archive
+        id: stage
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          name="godot-xdg-portals-${VERSION}-linux-x86_64"
+          stage="dist/${name}"
+          mkdir -p "${stage}/addons"
+          cp -r addons/xdg_portals "${stage}/addons/"
+          cp README.md LICENSE THIRD_PARTY_NOTICES.md CHANGELOG.md "${stage}/"
+
+          # The archive ships only what a consumer installs: no build trees, no
+          # editor caches, no test or demo sources.
+          test -f "${stage}/addons/xdg_portals/bin/libxdg_portals.linux.template_release.x86_64.so"
+          test -f "${stage}/addons/xdg_portals/bin/libxdg_portals.linux.template_debug.x86_64.so"
+          test -f "${stage}/addons/xdg_portals/bin/libxdg_portals.linux.editor.x86_64.so"
+          test -f "${stage}/addons/xdg_portals/xdg_portals.gdextension"
+          test -f "${stage}/addons/xdg_portals/plugin.cfg"
+          test -f "${stage}/addons/xdg_portals/xdg_portal.gd"
+          test -f "${stage}/README.md"
+          test -f "${stage}/LICENSE"
+          test -f "${stage}/THIRD_PARTY_NOTICES.md"
+
+          (cd dist && zip -q -r "${name}.zip" "${name}")
+          (cd dist && sha256sum "${name}.zip" > "${name}.zip.sha256")
+          unzip -l "dist/${name}.zip"
+          echo "archive=dist/${name}.zip" >> "$GITHUB_OUTPUT"
+          echo "checksum=dist/${name}.zip.sha256" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: godot-xdg-portals-linux-x86_64
+          path: |
+            ${{ steps.stage.outputs.archive }}
+            ${{ steps.stage.outputs.checksum }}
+          if-no-files-found: error
+
+      - name: Publish the GitHub release
+        if: github.event_name == 'push'
+        uses: softprops/action-gh-release@v2
+        with:
+          draft: true
+          generate_release_notes: true
+          files: |
+            ${{ steps.stage.outputs.archive }}
+            ${{ steps.stage.outputs.checksum }}

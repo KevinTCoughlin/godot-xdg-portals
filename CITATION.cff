@@ -1,0 +1,26 @@
+cff-version: 1.2.0
+title: godot-xdg-portals
+message: >-
+  If you use this software, please cite it using the metadata from this file.
+type: software
+authors:
+  - given-names: Kevin
+    family-names: Coughlin
+    alias: KevinTCoughlin
+repository-code: "https://github.com/KevinTCoughlin/godot-xdg-portals"
+url: "https://github.com/KevinTCoughlin/godot-xdg-portals"
+abstract: >-
+  A Godot 4 GDExtension providing typed, sandbox-safe access to selected XDG
+  Desktop Portal APIs (GameMode, Inhibit, PowerProfileMonitor, OpenURI and
+  Notification), working on native Linux and inside Flatpak and degrading safely
+  on platforms without desktop portals.
+keywords:
+  - godot
+  - gdextension
+  - xdg-desktop-portal
+  - flatpak
+  - linux
+  - dbus
+license: MIT
+version: 0.1.0
+date-released: "2026-09-06"

@@ -1,0 +1,17 @@
+# SPDX-FileCopyrightText: 2026 Kevin Coughlin
+#
+# SPDX-License-Identifier: MIT
+
+blank_issues_enabled: false
+contact_links:
+  - name: Security vulnerability
+    url: https://github.com/KevinTCoughlin/godot-xdg-portals/security/advisories/new
+    about: Report privately. Please do not open a public issue.
+  - name: Question or usage help
+    url: https://github.com/KevinTCoughlin/godot-xdg-portals/discussions
+    about: Ask in Discussions; check docs/api.md first.
+  - name: Portal or desktop bug
+    url: https://github.com/flatpak/xdg-desktop-portal/issues
+    about: >-
+      If a portal interface is missing or misbehaving on your desktop, that
+      belongs upstream.

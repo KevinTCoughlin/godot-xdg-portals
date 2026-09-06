@@ -1,0 +1,51 @@
+# SPDX-FileCopyrightText: 2026 Kevin Coughlin
+#
+# SPDX-License-Identifier: MIT
+
+name: Feature request
+description: Propose a portal capability or API addition.
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Please check [docs/roadmap.md](https://github.com/KevinTCoughlin/godot-xdg-portals/blob/main/docs/roadmap.md)
+        first — it lists what is planned and what is deliberately out of scope.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem does this solve?
+      description: Describe the situation in a game, not the API you have in mind.
+      placeholder: >-
+        I want to pause the game when the session locks, which I cannot detect today.
+    validations:
+      required: true
+
+  - type: input
+    id: interface
+    attributes:
+      label: Portal interface and members
+      description: Which `org.freedesktop.portal.*` interface and members would this need?
+      placeholder: "org.freedesktop.portal.Inhibit — CreateMonitor, StateChanged"
+
+  - type: textarea
+    id: api-sketch
+    attributes:
+      label: Proposed Godot API
+      description: >-
+        A sketch of how it would look from GDScript, including what happens when
+        the interface is unavailable.
+      render: gdscript
+
+  - type: checkboxes
+    id: constraints
+    attributes:
+      label: Constraints
+      description: >-
+        This project keeps a small, typed, mockable API and minimal sandbox
+        permissions.
+      options:
+        - label: This can be expressed as a typed API that a mock backend can implement.
+        - label: This needs no Flatpak permission beyond `--talk-name=org.freedesktop.portal.Desktop`.
+        - label: I have read the out-of-scope list in docs/roadmap.md.

@@ -1,0 +1,31 @@
+; Engine configuration file.
+; SPDX-FileCopyrightText: 2026 Kevin Coughlin
+; SPDX-License-Identifier: MIT
+
+config_version=5
+
+[application]
+
+config/name="Godot XDG Portals"
+config/description="Demo project and test bed for the xdg_portals addon."
+run/main_scene="res://demo/demo.tscn"
+config/features=PackedStringArray("4.4", "GL Compatibility")
+config/icon="res://demo/icon.svg"
+
+[autoload]
+
+XDGPortal="*res://addons/xdg_portals/xdg_portal.gd"
+
+[display]
+
+window/size/viewport_width=900
+window/size/viewport_height=640
+
+[editor_plugins]
+
+enabled=PackedStringArray("res://addons/xdg_portals/plugin.cfg")
+
+[rendering]
+
+renderer/rendering_method="gl_compatibility"
+renderer/rendering_method.mobile="gl_compatibility"

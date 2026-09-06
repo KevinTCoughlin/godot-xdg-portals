@@ -1,0 +1,135 @@
+# SPDX-FileCopyrightText: 2026 Kevin Coughlin
+#
+# SPDX-License-Identifier: MIT
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  GODOT_VERSION: 4.4.1
+
+jobs:
+  native:
+    name: Native build (${{ matrix.target }})
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [template_debug, template_release, editor]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install GLib/GIO development headers
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y \
+            build-essential cmake pkg-config libglib2.0-dev
+
+      - name: Cache godot-cpp checkout
+        uses: actions/cache@v4
+        with:
+          path: build-${{ matrix.target }}/_deps
+          key: godot-cpp-${{ matrix.target }}-${{ hashFiles('CMakeLists.txt') }}
+
+      - name: Build
+        run: ./scripts/build.sh --target ${{ matrix.target }}
+
+      - name: Verify the library exports the GDExtension entry point
+        run: |
+          set -euo pipefail
+          library="addons/xdg_portals/bin/libxdg_portals.linux.${{ matrix.target }}.x86_64.so"
+          test -f "$library"
+          nm -D --defined-only "$library" | grep -q ' xdg_portals_library_init$'
+          echo "Found xdg_portals_library_init in $library"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: libxdg_portals-linux-x86_64-${{ matrix.target }}
+          path: addons/xdg_portals/bin/*.so
+          if-no-files-found: error
+
+  tests:
+    # `env` is not available in a job `name`, so the version stays out of it.
+    name: Godot test suite
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Godot
+        run: |
+          set -euo pipefail
+          archive="Godot_v${GODOT_VERSION}-stable_linux.x86_64"
+          url="https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}-stable/${archive}.zip"
+          curl --fail --location --silent --show-error --output godot.zip "$url"
+          unzip -q godot.zip
+          chmod +x "$archive"
+          sudo mv "$archive" /usr/local/bin/godot
+          godot --headless --version
+
+      # The suite is entirely mock-backed: it needs neither a display nor a
+      # session bus, so it is deterministic on a bare runner.
+      - name: Run the mock-backed test suite
+        run: ./scripts/run_tests.sh
+
+  native-smoke:
+    name: Native backend vs. fake portal
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install build and D-Bus dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y \
+            build-essential cmake pkg-config libglib2.0-dev dbus
+
+      - name: Install Godot
+        run: |
+          set -euo pipefail
+          archive="Godot_v${GODOT_VERSION}-stable_linux.x86_64"
+          url="https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}-stable/${archive}.zip"
+          curl --fail --location --silent --show-error --output godot.zip "$url"
+          unzip -q godot.zip
+          chmod +x "$archive"
+          sudo mv "$archive" /usr/local/bin/godot
+
+      - name: Build the editor-target library
+        run: ./scripts/build.sh --target editor
+
+      # Runs the real GIO code path against a scripted fake portal on a private
+      # session bus. It does not stand in for the desktop checklist in
+      # docs/native-testing.md, which needs a graphical session and a human.
+      - name: Run the native smoke test
+        run: ./scripts/run_native_smoke.sh
+
+  scripts:
+    name: Shell script syntax
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: bash -n
+        run: |
+          set -euo pipefail
+          for script in scripts/*.sh; do
+            bash -n "$script"
+            echo "ok $script"
+          done
+
+  reuse:
+    name: REUSE compliance
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: fsfe/reuse-action@v5

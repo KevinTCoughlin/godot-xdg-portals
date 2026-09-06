@@ -1,0 +1,23 @@
+# Godot's import cache and editor state — generated, never committed.
+.godot/
+.import/
+export_presets.cfg
+
+# CMake build trees.
+build/
+build-*/
+cmake-build-*/
+
+# Native artifacts produced by scripts/build.sh.
+addons/xdg_portals/bin/*.so
+addons/xdg_portals/bin/*.dylib
+addons/xdg_portals/bin/*.dll
+
+# Release staging.
+dist/
+
+# Editor and OS noise.
+*.swp
+.DS_Store
+.vscode/
+.idea/

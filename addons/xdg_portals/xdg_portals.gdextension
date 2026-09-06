@@ -1,0 +1,29 @@
+[configuration]
+
+entry_symbol = "xdg_portals_library_init"
+compatibility_minimum = "4.4"
+reloadable = false
+
+[libraries]
+
+; Only Linux builds exist: on every other platform the addon falls back to the
+; pure-GDScript null backend, which needs no native library.
+; The editor entries must come first: the editor binary carries both the
+; `editor` and `debug` feature tags, and the first matching key wins. Listing
+; `linux.debug.*` first would send the editor to a template_debug library it
+; does not need (and which is not built by default).
+linux.editor.x86_64 = "res://addons/xdg_portals/bin/libxdg_portals.linux.editor.x86_64.so"
+linux.editor.arm64 = "res://addons/xdg_portals/bin/libxdg_portals.linux.editor.arm64.so"
+linux.template_debug.x86_64 = "res://addons/xdg_portals/bin/libxdg_portals.linux.template_debug.x86_64.so"
+linux.template_debug.arm64 = "res://addons/xdg_portals/bin/libxdg_portals.linux.template_debug.arm64.so"
+linux.template_release.x86_64 = "res://addons/xdg_portals/bin/libxdg_portals.linux.template_release.x86_64.so"
+linux.template_release.arm64 = "res://addons/xdg_portals/bin/libxdg_portals.linux.template_release.arm64.so"
+linux.debug.x86_64 = "res://addons/xdg_portals/bin/libxdg_portals.linux.template_debug.x86_64.so"
+linux.debug.arm64 = "res://addons/xdg_portals/bin/libxdg_portals.linux.template_debug.arm64.so"
+linux.release.x86_64 = "res://addons/xdg_portals/bin/libxdg_portals.linux.template_release.x86_64.so"
+linux.release.arm64 = "res://addons/xdg_portals/bin/libxdg_portals.linux.template_release.arm64.so"
+
+[dependencies]
+
+; GLib/GIO are resolved from the host system (or the Flatpak runtime); nothing
+; is bundled.
