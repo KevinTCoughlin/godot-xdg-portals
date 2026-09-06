@@ -29,7 +29,7 @@ jobs:
       matrix:
         target: [template_debug, template_release, editor]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Install GLib/GIO development headers
         run: |
@@ -38,7 +38,7 @@ jobs:
             build-essential cmake pkg-config libglib2.0-dev
 
       - name: Cache godot-cpp checkout
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: build-${{ matrix.target }}/_deps
           key: godot-cpp-${{ matrix.target }}-${{ hashFiles('CMakeLists.txt') }}
@@ -54,7 +54,7 @@ jobs:
           nm -D --defined-only "$library" | grep -q ' xdg_portals_library_init$'
           echo "Found xdg_portals_library_init in $library"
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: libxdg_portals-linux-x86_64-${{ matrix.target }}
           path: addons/xdg_portals/bin/*.so
@@ -65,7 +65,7 @@ jobs:
     name: Godot test suite
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Install Godot
         run: |
@@ -87,7 +87,7 @@ jobs:
     name: Native backend vs. fake portal
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Install build and D-Bus dependencies
         run: |
@@ -118,7 +118,7 @@ jobs:
     name: Shell script syntax
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: bash -n
         run: |
           set -euo pipefail
@@ -131,5 +131,5 @@ jobs:
     name: REUSE compliance
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
-      - uses: fsfe/reuse-action@v5
+      - uses: actions/checkout@v7
+      - uses: fsfe/reuse-action@v6
