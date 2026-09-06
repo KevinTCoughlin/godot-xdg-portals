@@ -44,10 +44,13 @@ jobs:
           sudo apt-get install --no-install-recommends -y \
             build-essential cmake pkg-config libglib2.0-dev
 
-      - name: Build the release and debug libraries
+      # The editor target ships too: without it the addon falls back to the null
+      # backend when a project is run from the Godot editor.
+      - name: Build the release, debug and editor libraries
         run: |
           ./scripts/build.sh --target template_release
           ./scripts/build.sh --target template_debug
+          ./scripts/build.sh --target editor
 
       - name: Stage the archive
         id: stage
@@ -65,6 +68,7 @@ jobs:
           # editor caches, no test or demo sources.
           test -f "${stage}/addons/xdg_portals/bin/libxdg_portals.linux.template_release.x86_64.so"
           test -f "${stage}/addons/xdg_portals/bin/libxdg_portals.linux.template_debug.x86_64.so"
+          test -f "${stage}/addons/xdg_portals/bin/libxdg_portals.linux.editor.x86_64.so"
           test -f "${stage}/addons/xdg_portals/xdg_portals.gdextension"
           test -f "${stage}/addons/xdg_portals/plugin.cfg"
           test -f "${stage}/addons/xdg_portals/xdg_portal.gd"

@@ -45,8 +45,10 @@ exposes no way to make an arbitrary D-Bus call.
    installs the `XDGPortal` autoload for you.
 
 The archive contains the addon (GDScript facade, backends, `.gdextension`
-descriptor), the prebuilt Linux x86-64 libraries, `README.md`, `LICENSE`,
-`CHANGELOG.md` and `THIRD_PARTY_NOTICES.md`.
+descriptor), the prebuilt Linux x86-64 libraries for all three targets —
+`template_release`, `template_debug` and `editor`, the last so the native
+backend is active when you run your project from the Godot editor — plus
+`README.md`, `LICENSE`, `CHANGELOG.md` and `THIRD_PARTY_NOTICES.md`.
 
 ### From source
 
