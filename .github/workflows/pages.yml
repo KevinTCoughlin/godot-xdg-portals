@@ -1,0 +1,55 @@
+# SPDX-FileCopyrightText: 2026 Kevin Coughlin
+#
+# SPDX-License-Identifier: MIT
+
+name: Pages
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "site/**"
+      - ".github/workflows/pages.yml"
+  workflow_dispatch:
+
+# Only the deploy job needs write access; nothing here touches the repository.
+permissions:
+  contents: read
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Build and deploy the project site
+    runs-on: ubuntu-24.04
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      # The site is a single static file with no build step and no external
+      # assets, so there is nothing to compile — site/ is uploaded as-is.
+      - name: Check the site is self-contained
+        run: |
+          set -euo pipefail
+          test -f site/index.html
+          if grep -nE '(src|href)="https?://(cdn|unpkg|fonts)' site/index.html; then
+            echo "The page must not depend on external assets." >&2
+            exit 1
+          fi
+          echo "site/index.html is self-contained."
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+      - id: deploy
+        uses: actions/deploy-pages@v4
