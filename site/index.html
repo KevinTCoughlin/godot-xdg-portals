@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<!--
+SPDX-FileCopyrightText: 2026 Kevin Coughlin
+
+SPDX-License-Identifier: MIT
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>godot-xdg-portals — desktop portals for Godot games on Linux</title>
+<meta name="description" content="A Godot 4.4+ GDExtension for XDG Desktop Portals: GameMode, idle inhibition, power-saver awareness, URI opening and notifications. Works in Flatpak, degrades safely everywhere else.">
+<meta property="og:title" content="godot-xdg-portals">
+<meta property="og:description" content="Desktop portals for Godot games on Linux. Typed, sandbox-safe, and honest about what it cannot do.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://kevintcoughlin.github.io/godot-xdg-portals/">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%23478cbf'/><path d='M9 16h11M16 11l5 5-5 5' stroke='%23fff' stroke-width='2.6' fill='none' stroke-linecap='round' stroke-linejoin='round'/></svg>">
+<style>
+  :root {
+    --bg: #0e1116;
+    --bg-raised: #151a21;
+    --bg-code: #0a0d12;
+    --border: #232b36;
+    --text: #e6ebf2;
+    --text-dim: #98a3b3;
+    --accent: #5aa9e6;
+    --accent-soft: rgba(90, 169, 230, 0.12);
+    --good: #6cc48a;
+    --warn: #e0a458;
+    --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+    --sans: system-ui, -apple-system, "Segoe UI", Roboto, Inter, sans-serif;
+    color-scheme: dark;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    font-size: 17px;
+    line-height: 1.65;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  a { color: var(--accent); }
+
+  .wrap { width: min(100% - 2.5rem, 60rem); margin-inline: auto; }
+
+  /* ---------- hero ---------- */
+
+  .hero {
+    position: relative;
+    padding: clamp(3.5rem, 9vw, 6.5rem) 0 clamp(2.5rem, 6vw, 4rem);
+    border-bottom: 1px solid var(--border);
+    background:
+      radial-gradient(60rem 30rem at 15% -10%, rgba(90, 169, 230, 0.14), transparent 70%),
+      radial-gradient(40rem 24rem at 95% 0%, rgba(108, 196, 138, 0.08), transparent 70%);
+    overflow: hidden;
+  }
+
+  .eyebrow {
+    display: inline-flex; align-items: center; gap: .55rem;
+    font-family: var(--mono); font-size: .78rem; letter-spacing: .04em;
+    color: var(--accent);
+    background: var(--accent-soft);
+    border: 1px solid rgba(90, 169, 230, 0.25);
+    border-radius: 999px; padding: .3rem .8rem;
+    margin: 0 0 1.4rem;
+  }
+
+  h1 {
+    font-size: clamp(2.3rem, 6.2vw, 3.9rem);
+    line-height: 1.08; letter-spacing: -0.025em;
+    margin: 0 0 1rem; font-weight: 700;
+  }
+  h1 .tint { color: var(--accent); }
+
+  .lede {
+    font-size: clamp(1.05rem, 2.4vw, 1.3rem);
+    color: var(--text-dim); max-width: 42rem; margin: 0 0 2rem;
+  }
+
+  .cta-row { display: flex; flex-wrap: wrap; gap: .75rem; align-items: center; }
+
+  .btn {
+    display: inline-flex; align-items: center; gap: .5rem;
+    padding: .7rem 1.25rem; border-radius: .5rem;
+    font-weight: 600; font-size: .95rem; text-decoration: none;
+    border: 1px solid transparent; transition: transform .12s ease, background .15s ease;
+  }
+  .btn:hover { transform: translateY(-1px); }
+  .btn-primary { background: var(--accent); color: #06121c; }
+  .btn-primary:hover { background: #74b8ec; }
+  .btn-ghost { border-color: var(--border); color: var(--text); background: var(--bg-raised); }
+  .btn-ghost:hover { border-color: var(--accent); }
+
+  .hero-note {
+    margin-top: 1.5rem; font-size: .85rem; color: var(--text-dim);
+    font-family: var(--mono);
+  }
+
+  /* ---------- sections ---------- */
+
+  section { padding: clamp(3rem, 7vw, 5rem) 0; }
+  section + section { border-top: 1px solid var(--border); }
+
+  h2 {
+    font-size: clamp(1.5rem, 3.6vw, 2.05rem); letter-spacing: -0.02em;
+    margin: 0 0 .6rem; font-weight: 650;
+  }
+  .section-sub { color: var(--text-dim); margin: 0 0 2.25rem; max-width: 44rem; }
+
+  /* ---------- problem / solution ---------- */
+
+  .split { display: grid; gap: 1.25rem; grid-template-columns: 1fr; }
+  @media (min-width: 48rem) { .split { grid-template-columns: 1fr 1fr; } }
+
+  .panel {
+    background: var(--bg-raised); border: 1px solid var(--border);
+    border-radius: .75rem; padding: 1.4rem 1.5rem;
+  }
+  .panel h3 {
+    margin: 0 0 .8rem; font-size: .82rem; text-transform: uppercase;
+    letter-spacing: .09em; font-family: var(--mono); font-weight: 600;
+  }
+  .panel.bad h3 { color: var(--warn); }
+  .panel.good h3 { color: var(--good); }
+  .panel ul { margin: 0; padding-left: 1.1rem; color: var(--text-dim); }
+  .panel li { margin-bottom: .5rem; }
+  .panel li:last-child { margin-bottom: 0; }
+  .panel code { color: var(--text); }
+
+  /* ---------- portal grid ---------- */
+
+  .grid { display: grid; gap: 1rem; grid-template-columns: 1fr; }
+  @media (min-width: 40rem) { .grid { grid-template-columns: repeat(2, 1fr); } }
+  @media (min-width: 62rem) { .grid { grid-template-columns: repeat(3, 1fr); } }
+
+  .card {
+    background: var(--bg-raised); border: 1px solid var(--border);
+    border-radius: .75rem; padding: 1.35rem; display: flex; flex-direction: column;
+  }
+  .card-icon { width: 26px; height: 26px; color: var(--accent); margin-bottom: .85rem; }
+  .card h3 { margin: 0 0 .35rem; font-size: 1.06rem; font-weight: 650; }
+  .card .iface {
+    font-family: var(--mono); font-size: .72rem; color: var(--text-dim);
+    margin: 0 0 .7rem; word-break: break-all;
+  }
+  .card p { margin: 0 0 .9rem; color: var(--text-dim); font-size: .93rem; flex: 1; }
+  .card .api {
+    font-family: var(--mono); font-size: .78rem; color: var(--accent);
+    background: var(--bg-code); border: 1px solid var(--border);
+    border-radius: .4rem; padding: .5rem .65rem; overflow-x: auto; white-space: pre;
+  }
+
+  /* ---------- code ---------- */
+
+  pre {
+    background: var(--bg-code); border: 1px solid var(--border);
+    border-radius: .65rem; padding: 1.15rem 1.3rem; overflow-x: auto;
+    font-family: var(--mono); font-size: .86rem; line-height: 1.7; margin: 0;
+  }
+  code { font-family: var(--mono); font-size: .9em; }
+  .c-key { color: #c191ea; }
+  .c-fn { color: #6cc48a; }
+  .c-str { color: #e0a458; }
+  .c-com { color: #6b7789; font-style: italic; }
+  .c-lit { color: #5aa9e6; }
+
+  .code-label {
+    font-family: var(--mono); font-size: .74rem; color: var(--text-dim);
+    text-transform: uppercase; letter-spacing: .08em; margin: 0 0 .55rem;
+  }
+  .code-block + .code-block { margin-top: 1.75rem; }
+
+  /* ---------- honesty table ---------- */
+
+  .table-scroll { overflow-x: auto; border: 1px solid var(--border); border-radius: .65rem; }
+  table { border-collapse: collapse; width: 100%; font-size: .9rem; min-width: 34rem; }
+  th, td { text-align: left; padding: .75rem 1rem; border-bottom: 1px solid var(--border); }
+  th { background: var(--bg-raised); font-family: var(--mono); font-size: .76rem;
+       text-transform: uppercase; letter-spacing: .06em; color: var(--text-dim); font-weight: 600; }
+  tr:last-child td { border-bottom: none; }
+  td code { color: var(--accent); }
+
+  /* ---------- footer ---------- */
+
+  footer {
+    border-top: 1px solid var(--border); padding: 2.5rem 0 3.5rem;
+    color: var(--text-dim); font-size: .88rem;
+  }
+  .foot-links { display: flex; flex-wrap: wrap; gap: 1.25rem; margin-bottom: 1.25rem; }
+  .foot-links a { text-decoration: none; }
+  .foot-links a:hover { text-decoration: underline; }
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="wrap">
+    <p class="eyebrow">Godot 4.4+ &middot; GDExtension &middot; MIT</p>
+    <h1>Desktop portals for<br>Godot games on <span class="tint">Linux</span>.</h1>
+    <p class="lede">
+      Keep GameMode on, stop the screen blanking mid-cutscene, react to power-saver
+      mode, open a URL, post a notification &mdash; from six lines of GDScript.
+      Works inside a Flatpak sandbox, where the usual tricks quietly stop working.
+    </p>
+    <div class="cta-row">
+      <a class="btn btn-primary" href="https://github.com/KevinTCoughlin/godot-xdg-portals">
+        <svg class="card-icon" style="width:18px;height:18px;margin:0" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></svg>
+        View on GitHub
+      </a>
+      <a class="btn btn-ghost" href="https://github.com/KevinTCoughlin/godot-xdg-portals/releases">Download the addon</a>
+      <a class="btn btn-ghost" href="https://github.com/KevinTCoughlin/godot-xdg-portals/blob/main/docs/api.md">API reference</a>
+    </div>
+    <p class="hero-note">No D-Bus in your game code. No shelling out. No broad sandbox permissions.</p>
+  </div>
+</header>
+
+<section>
+  <div class="wrap">
+    <h2>Why this exists</h2>
+    <p class="section-sub">
+      Everything a Linux game wants from the desktop sits behind D-Bus, and Godot
+      cannot speak it. The usual workarounds break the moment your game ships as a Flatpak.
+    </p>
+    <div class="split">
+      <div class="panel bad">
+        <h3>Without portals</h3>
+        <ul>
+          <li><code>OS.execute("gdbus", ...)</code> &mdash; fails in a sandbox, and spawns a process per call.</li>
+          <li>Talking to <code>gamemoded</code> directly &mdash; needs a broad <code>--talk-name</code> that reviewers push back on.</li>
+          <li>Screen blanks during your cutscene because nothing inhibited the idle timer.</li>
+          <li>No way to know the laptop just entered power-saver mode.</li>
+          <li>Desktop-specific code paths for GNOME vs KDE vs wlroots.</li>
+        </ul>
+      </div>
+      <div class="panel good">
+        <h3>With godot-xdg-portals</h3>
+        <ul>
+          <li>One autoload, <code>XDGPortal</code>, with a typed API and real enums.</li>
+          <li>GLib/GIO under the hood &mdash; no subprocess, ever.</li>
+          <li>Flatpak needs exactly <code>--socket=session-bus</code> and one <code>--talk-name</code>.</li>
+          <li>Capabilities discovered at runtime, so one build covers every desktop.</li>
+          <li>Windows, macOS, mobile and web load a null backend and keep running.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <h2>Five portals, one small API</h2>
+    <p class="section-sub">
+      Each maps to an <code>org.freedesktop.portal.*</code> interface, discovered at
+      startup and version-gated where the spec requires it.
+    </p>
+    <div class="grid">
+
+      <article class="card">
+        <svg class="card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 12h4M8 10v4"/><circle cx="15" cy="11" r="1"/><circle cx="17.5" cy="13.5" r="1"/><rect x="2" y="6" width="20" height="12" rx="4"/></svg>
+        <h3>GameMode</h3>
+        <p class="iface">org.freedesktop.portal.GameMode</p>
+        <p>Ask the host to apply CPU governor and scheduling tweaks while your game is in the foreground.</p>
+        <div class="api">XDGPortal.request_game_mode()</div>
+      </article>
+
+      <article class="card">
+        <svg class="card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+        <h3>Inhibit</h3>
+        <p class="iface">org.freedesktop.portal.Inhibit</p>
+        <p>Block idle, suspend, logout or user switching for as long as you hold the handle. Cutscenes stay on screen.</p>
+        <div class="api">XDGPortal.inhibit(flags, reason)</div>
+      </article>
+
+      <article class="card">
+        <svg class="card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="7" width="17" height="10" rx="2"/><path d="M22 11v2"/><path d="M6 10v4"/></svg>
+        <h3>PowerProfileMonitor</h3>
+        <p class="iface">org.freedesktop.portal.PowerProfileMonitor</p>
+        <p>Know when the machine enters power-saver mode so you can drop the frame cap instead of draining the battery.</p>
+        <div class="api">XDGPortal.is_power_saver_enabled()</div>
+      </article>
+
+      <article class="card">
+        <svg class="card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.5 1.5"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.5-1.5"/></svg>
+        <h3>OpenURI</h3>
+        <p class="iface">org.freedesktop.portal.OpenURI</p>
+        <p>Open your manual, storefront or Discord in the user's browser. <code>file:</code> is refused, case-insensitively.</p>
+        <div class="api">XDGPortal.open_uri(uri)</div>
+      </article>
+
+      <article class="card">
+        <svg class="card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg>
+        <h3>Notification</h3>
+        <p class="iface">org.freedesktop.portal.Notification</p>
+        <p>Post a desktop notification with a priority, withdraw it later, and receive the action the player clicked.</p>
+        <div class="api">XDGPortal.add_notification(id, title)</div>
+      </article>
+
+      <article class="card">
+        <svg class="card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M5.6 18.4l2.1-2.1M16.3 7.7l2.1-2.1"/><circle cx="12" cy="12" r="3.2"/></svg>
+        <h3>Runtime discovery</h3>
+        <p class="iface">version properties &amp; capabilities</p>
+        <p>Ask what the running desktop actually exports before you use it. Ship one build for every distro and compositor.</p>
+        <div class="api">XDGPortal.has_capability(cap)</div>
+      </article>
+
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <h2>What it looks like</h2>
+    <p class="section-sub">The whole integration, from a real project.</p>
+
+    <div class="code-block">
+      <p class="code-label">Keep the screen awake during a cutscene</p>
+<pre><span class="c-key">var</span> _handle := <span class="c-str">""</span>
+
+<span class="c-key">func</span> <span class="c-fn">begin_cutscene</span>() -&gt; <span class="c-key">void</span>:
+    <span class="c-key">var</span> flags := XDGPortal.InhibitFlags.IDLE | XDGPortal.InhibitFlags.SUSPEND
+    _handle = XDGPortal.<span class="c-fn">inhibit</span>(flags, <span class="c-str">"Playing a cutscene"</span>)
+
+<span class="c-key">func</span> <span class="c-fn">end_cutscene</span>() -&gt; <span class="c-key">void</span>:
+    <span class="c-key">if</span> _handle != <span class="c-str">""</span>:
+        XDGPortal.<span class="c-fn">close_request</span>(_handle)
+        _handle = <span class="c-str">""</span></pre>
+    </div>
+
+    <div class="code-block">
+      <p class="code-label">Turn GameMode on, and follow the battery</p>
+<pre><span class="c-key">func</span> <span class="c-fn">_ready</span>() -&gt; <span class="c-key">void</span>:
+    <span class="c-key">if</span> XDGPortal.<span class="c-fn">has_capability</span>(XDGPortal.Capability.GAME_MODE):
+        XDGPortal.<span class="c-fn">request_game_mode</span>()
+
+    XDGPortal.power_saver_changed.<span class="c-fn">connect</span>(_on_power_saver_changed)
+
+<span class="c-key">func</span> <span class="c-fn">_on_power_saver_changed</span>(enabled: <span class="c-key">bool</span>) -&gt; <span class="c-key">void</span>:
+    Engine.max_fps = <span class="c-lit">30</span> <span class="c-key">if</span> enabled <span class="c-key">else</span> <span class="c-lit">0</span></pre>
+    </div>
+
+    <div class="code-block">
+      <p class="code-label">Unknown is a real answer, not a guess</p>
+<pre><span class="c-com"># Returns true, false, or null — never a plausible-looking lie.</span>
+<span class="c-key">var</span> saving: <span class="c-key">Variant</span> = XDGPortal.<span class="c-fn">is_power_saver_enabled</span>()
+
+<span class="c-key">if</span> saving == <span class="c-key">null</span>:
+    <span class="c-key">pass</span>  <span class="c-com"># The portal could not tell us. Do nothing.</span>
+<span class="c-key">elif</span> saving:
+    <span class="c-fn">reduce_quality</span>()</pre>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <h2>Honest by construction</h2>
+    <p class="section-sub">
+      A portal that is missing, an old desktop, a machine with no session bus &mdash;
+      each has a defined answer, and none of them is a fake success.
+    </p>
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr><th>Situation</th><th>What you get</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Portal interface not exported</td><td><code>has_capability()</code> is <code>false</code>; calls return <code>false</code> or <code>""</code></td></tr>
+          <tr><td>Power-saver state unreadable</td><td><code>null</code> &mdash; never a guessed <code>false</code></td></tr>
+          <tr><td>Portal too old for <code>SchemeSupported</code></td><td><code>null</code>, because the question genuinely cannot be answered</td></tr>
+          <tr><td>User dismisses the "open with" dialog</td><td><code>Response.CANCELLED</code>, not a success</td></tr>
+          <tr><td>Windows, macOS, mobile, web</td><td>Null backend; the addon loads and every call reports unavailable</td></tr>
+          <tr><td>Headless Linux, no session bus</td><td>Null backend with the reason attached, no crash</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <h2>Install it</h2>
+    <p class="section-sub">Grab the release archive, or build the extension yourself.</p>
+
+    <div class="code-block">
+      <p class="code-label">From a release</p>
+<pre><span class="c-com"># Extract addons/xdg_portals into your project, then enable</span>
+<span class="c-com"># "XDG Portals" in Project Settings → Plugins.</span>
+<span class="c-com"># The plugin installs the XDGPortal autoload for you.</span></pre>
+    </div>
+
+    <div class="code-block">
+      <p class="code-label">From source</p>
+<pre>git clone https://github.com/KevinTCoughlin/godot-xdg-portals.git
+<span class="c-key">cd</span> godot-xdg-portals
+sudo apt-get install build-essential cmake pkg-config libglib2.0-dev
+./scripts/build.sh --target template_release</pre>
+    </div>
+
+    <div class="code-block">
+      <p class="code-label">Flatpak manifest — the whole permission cost</p>
+<pre>finish-args:
+  - --socket=session-bus
+  - --talk-name=org.freedesktop.portal.Desktop</pre>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <div class="foot-links">
+      <a href="https://github.com/KevinTCoughlin/godot-xdg-portals">Source</a>
+      <a href="https://github.com/KevinTCoughlin/godot-xdg-portals/blob/main/docs/api.md">API</a>
+      <a href="https://github.com/KevinTCoughlin/godot-xdg-portals/blob/main/docs/architecture.md">Architecture</a>
+      <a href="https://github.com/KevinTCoughlin/godot-xdg-portals/blob/main/docs/compatibility.md">Compatibility</a>
+      <a href="https://github.com/KevinTCoughlin/godot-xdg-portals/blob/main/docs/roadmap.md">Roadmap</a>
+      <a href="https://github.com/KevinTCoughlin/godot-xdg-portals/issues">Issues</a>
+    </div>
+    <p>
+      MIT licensed. Not affiliated with the Godot Engine project or freedesktop.org.
+      Godot is a trademark of the Godot Foundation.
+    </p>
+  </div>
+</footer>
+
+</body>
+</html>
