@@ -1,0 +1,21 @@
+# SPDX-FileCopyrightText: 2026 Kevin Coughlin
+#
+# SPDX-License-Identifier: MIT
+
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: "ci"
+    labels:
+      - dependencies
+      - github-actions
+    groups:
+      actions:
+        patterns: ["*"]
+
+  # godot-cpp is pinned by tag in CMakeLists.txt rather than as a submodule, so
+  # Dependabot cannot track it; see docs/roadmap.md for the planned bump policy.

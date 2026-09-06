@@ -1,0 +1,52 @@
+# SPDX-FileCopyrightText: 2026 Kevin Coughlin
+#
+# SPDX-License-Identifier: MIT
+
+version = 1
+SPDX-PackageName = "godot-xdg-portals"
+SPDX-PackageSupplier = "Kevin Coughlin (https://github.com/KevinTCoughlin)"
+SPDX-PackageDownloadLocation = "https://github.com/KevinTCoughlin/godot-xdg-portals"
+
+# Formats that cannot carry a comment header: Godot resources and imports,
+# project metadata, and generated import artifacts.
+[[annotations]]
+path = [
+    "project.godot",
+    "demo/demo.tscn",
+    "demo/icon.svg.import",
+    "addons/xdg_portals/plugin.cfg",
+    "addons/xdg_portals/xdg_portals.gdextension",
+    "CITATION.cff",
+    "LICENSE",
+    ".gitignore",
+    ".gitattributes",
+]
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2026 Kevin Coughlin"
+SPDX-License-Identifier = "MIT"
+
+# Godot writes a `.uid` sidecar next to every script. They are generated,
+# comment-free, and must be committed so resource references stay stable.
+[[annotations]]
+path = ["**/*.uid", "**/*.import"]
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2026 Kevin Coughlin"
+SPDX-License-Identifier = "MIT"
+
+# Documentation and repository metadata.
+[[annotations]]
+path = [
+    "README.md",
+    "CHANGELOG.md",
+    "CONTRIBUTING.md",
+    "GOVERNANCE.md",
+    "SECURITY.md",
+    "CODE_OF_CONDUCT.md",
+    "DCO.txt",
+    "THIRD_PARTY_NOTICES.md",
+    "docs/**",
+    ".github/**",
+]
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2026 Kevin Coughlin"
+SPDX-License-Identifier = "MIT"
