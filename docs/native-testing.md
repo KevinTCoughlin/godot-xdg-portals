@@ -87,6 +87,27 @@ shows exactly what the portal answered.
 If a check fails, `XDG_PORTALS_DEBUG=1` traces subscriptions, async replies and
 incoming responses on stderr.
 
+## Tier 4 — the macOS checklist (cannot run in CI)
+
+The macOS backend implements one capability, so its checklist is short — but it
+cannot be shortened to nothing. GitHub's macOS runners have no battery, so Low
+Power Mode never flips there: CI proves the library builds universal, exports
+its entry point and links only Foundation, and nothing beyond that. Everything
+below needs a real Mac, and a laptop for rows 3 and 4.
+
+| # | Check | Expected |
+| --- | --- | --- |
+| 1 | Launch the demo on macOS. | The status line names the `macos` backend and lists PowerProfileMonitor only. |
+| 2 | *Query GameMode*, *Inhibit*, *Open URI*, *Post notification*. | Every one reports unavailable. None crashes, none reports a success. |
+| 3 | *Read power saver* with Low Power Mode off, then on. | `false`, then `true` — never `null`, which on this backend would mean the read failed. |
+| 4 | Toggle Low Power Mode in System Settings while the demo runs. | `power_saver_changed` fires with the new state, on the main thread. |
+| 5 | Toggle Low Power Mode repeatedly, then quit the demo. | No crash on exit; the observer is removed before the object is released. |
+| 6 | Run on an Apple Silicon Mac and an Intel Mac (or under Rosetta). | Identical behaviour; the universal library loads on both. |
+
+Row 5 is the one worth taking seriously: the notification block captures the
+monitor and is delivered on a queue the object owns, so a botched teardown shows
+up as a crash on quit rather than as a wrong value.
+
 ## What is deliberately not automated
 
 - Anything that shows UI a human must answer (checks 4, 5, 8, 11, 12).

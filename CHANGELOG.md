@@ -10,6 +10,17 @@ Before 1.0 the public API may change in a minor release.
 
 ### Added
 
+- **Experimental macOS backend**, covering power-saver state only. A
+  `MacPowerMonitor` GDExtension class reads `-[NSProcessInfo
+  isLowPowerModeEnabled]` and forwards
+  `NSProcessInfoPowerStateDidChangeNotification`, surfaced through the existing
+  `is_power_saver_enabled()` and `power_saver_changed`. The other four
+  capabilities report unavailable, as they do on any null-backend platform.
+  Libraries are universal (x86-64 + arm64) and are not yet prebuilt in the
+  release archive. Verified only as far as CI can: it builds, is universal,
+  exports its entry point and links Foundation. The behaviour itself is a manual
+  checklist in `docs/native-testing.md` and has not been run on hardware.
+
 - `XDGPortal.get_supported_inhibit_flags()` and the matching backend method,
   reporting which `InhibitFlags` bits the current backend can request. Against a
   portal this is every documented bit; a backend that cannot inhibit reports

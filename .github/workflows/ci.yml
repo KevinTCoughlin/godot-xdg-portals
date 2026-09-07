@@ -58,6 +58,46 @@ jobs:
         with:
           name: libxdg_portals-linux-x86_64-${{ matrix.target }}
           path: addons/xdg_portals/bin/*.so
+
+  macos:
+    name: macOS build (${{ matrix.target }})
+    runs-on: macos-15
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [template_release, editor]
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Cache godot-cpp checkout
+        uses: actions/cache@v6
+        with:
+          path: build-${{ matrix.target }}/_deps
+          key: godot-cpp-macos-${{ matrix.target }}-${{ hashFiles('CMakeLists.txt') }}
+
+      - name: Build
+        run: ./scripts/build.sh --target ${{ matrix.target }}
+
+      # The runner has no battery, so Low Power Mode can never flip here and
+      # the state transition cannot be exercised in CI at all. What this job
+      # does prove is that the library builds for both architectures, exports
+      # the entry point, and links against Foundation and nothing else.
+      - name: Verify the library is universal and exports the entry point
+        run: |
+          set -euo pipefail
+          library="addons/xdg_portals/bin/libxdg_portals.macos.${{ matrix.target }}.dylib"
+          test -f "$library"
+          lipo -info "$library"
+          lipo -info "$library" | grep -q 'x86_64'
+          lipo -info "$library" | grep -q 'arm64'
+          nm -gU "$library" | grep -q '_xdg_portals_library_init$'
+          echo "Found xdg_portals_library_init in $library"
+          otool -L "$library" | grep -q 'Foundation.framework'
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: libxdg_portals-macos-${{ matrix.target }}
+          path: addons/xdg_portals/bin/*.dylib
           if-no-files-found: error
 
   tests:

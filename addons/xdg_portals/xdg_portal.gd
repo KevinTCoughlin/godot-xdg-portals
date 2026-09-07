@@ -374,7 +374,20 @@ func _ensure_backend() -> void:
 
 
 func _create_default_backend() -> XDGPortalBackend:
-	if OS.has_feature("web") or OS.get_name() != "Linux":
+	if OS.has_feature("web"):
+		return XDGPortalNullBackend.new("Desktop services are unavailable in a web build.")
+
+	if OS.get_name() == "macOS":
+		# macOS backs one capability of the five; the rest report unavailable
+		# through the same contract the null backend uses.
+		var mac: XDGPortalMacBackend = XDGPortalMacBackend.create()
+		if mac != null:
+			return mac
+		return XDGPortalNullBackend.new(
+			"The MacPowerMonitor extension is not loaded; build it or use a release archive."
+		)
+
+	if OS.get_name() != "Linux":
 		return XDGPortalNullBackend.new(
 			"XDG Desktop Portals are only available on Linux; running on %s." % OS.get_name()
 		)

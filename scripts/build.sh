@@ -3,10 +3,13 @@
 #
 # SPDX-License-Identifier: MIT
 #
-# Builds the XdgPortalNative GDExtension into addons/xdg_portals/bin.
+# Builds the GDExtension into addons/xdg_portals/bin. What gets built depends on
+# the host: the full XdgPortalNative portal bridge on Linux, the MacPowerMonitor
+# power monitor on macOS. No other platform has a native build.
 #
-# Requirements: cmake >= 3.22, a C++17 compiler, pkg-config and the GLib/GIO
-# development headers (libglib2.0-dev on Debian/Ubuntu).
+# Requirements: cmake >= 3.22 and a C++17 compiler, plus — on Linux —
+# pkg-config and the GLib/GIO development headers (libglib2.0-dev on
+# Debian/Ubuntu). macOS needs only the Xcode command line tools.
 
 set -euo pipefail
 
@@ -14,7 +17,7 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 TARGET="template_release"
 BUILD_TYPE="Release"
-JOBS="$(nproc 2>/dev/null || echo 4)"
+JOBS="$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)"
 GODOT_CPP_PATH=""
 BUILD_DIR=""
 
@@ -32,9 +35,14 @@ Options:
       --clean           Remove the build directory before configuring.
   -h, --help            Show this help.
 
-The resulting library is written to
-addons/xdg_portals/bin/libxdg_portals.linux.<target>.<arch>.so, which is the
-path addons/xdg_portals/xdg_portals.gdextension expects.
+The resulting library is written to the path
+addons/xdg_portals/xdg_portals.gdextension expects:
+
+  Linux   addons/xdg_portals/bin/libxdg_portals.linux.<target>.<arch>.so
+  macOS   addons/xdg_portals/bin/libxdg_portals.macos.<target>.dylib
+
+macOS libraries are universal (x86_64 + arm64), so no architecture appears in
+the name.
 EOF
 }
 

@@ -6,8 +6,11 @@ reloadable = false
 
 [libraries]
 
-; Only Linux builds exist: on every other platform the addon falls back to the
-; pure-GDScript null backend, which needs no native library.
+; Linux carries the full portal bridge. macOS carries the power monitor only —
+; the one capability with a genuine platform equivalent — and its libraries are
+; universal, so they are keyed on the target alone with no architecture. Every
+; other platform falls back to the pure-GDScript null backend, which needs no
+; native library.
 ; The editor entries must come first: the editor binary carries both the
 ; `editor` and `debug` feature tags, and the first matching key wins. Listing
 ; `linux.debug.*` first would send the editor to a template_debug library it
@@ -22,6 +25,12 @@ linux.debug.x86_64 = "res://addons/xdg_portals/bin/libxdg_portals.linux.template
 linux.debug.arm64 = "res://addons/xdg_portals/bin/libxdg_portals.linux.template_debug.arm64.so"
 linux.release.x86_64 = "res://addons/xdg_portals/bin/libxdg_portals.linux.template_release.x86_64.so"
 linux.release.arm64 = "res://addons/xdg_portals/bin/libxdg_portals.linux.template_release.arm64.so"
+
+macos.editor = "res://addons/xdg_portals/bin/libxdg_portals.macos.editor.dylib"
+macos.template_debug = "res://addons/xdg_portals/bin/libxdg_portals.macos.template_debug.dylib"
+macos.template_release = "res://addons/xdg_portals/bin/libxdg_portals.macos.template_release.dylib"
+macos.debug = "res://addons/xdg_portals/bin/libxdg_portals.macos.template_debug.dylib"
+macos.release = "res://addons/xdg_portals/bin/libxdg_portals.macos.template_release.dylib"
 
 [dependencies]
 
