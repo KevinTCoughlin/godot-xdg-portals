@@ -58,7 +58,7 @@ func test_open_uri_returns_empty_handle_when_the_call_cannot_start() -> void:
 
 
 func test_missing_capability_skips_the_backend() -> void:
-	mock.interface_versions["org.freedesktop.portal.OpenURI"] = -1
+	mock.capabilities[Facade.Capability.OPEN_URI] = false
 	portal.refresh_capabilities()
 	assert_eq(portal.open_uri("https://godotengine.org"), "")
 	assert_null(portal.is_scheme_supported("https"))
@@ -73,7 +73,7 @@ func test_scheme_supported_reports_true_and_false() -> void:
 
 
 func test_scheme_supported_is_unknown_below_interface_version_5() -> void:
-	mock.interface_versions["org.freedesktop.portal.OpenURI"] = 4
+	mock.interface_versions[Facade.Capability.OPEN_URI] = 4
 	portal.refresh_capabilities()
 	assert_null(portal.is_scheme_supported("https"),
 		"SchemeSupported does not exist before version 5, so the answer is unknown")

@@ -38,7 +38,16 @@ func _initialize() -> void:
 			continue
 
 		var suite_name: String = suite_path.get_file().get_basename()
-		for method_name: String in _test_methods(suite_script):
+		# A suite that contributes nothing is a broken suite, not a passing one:
+		# load() hands back a script that failed to compile rather than null, so
+		# without this a syntax error in a suite reads as a green run.
+		var method_names: PackedStringArray = _test_methods(suite_script)
+		if method_names.is_empty():
+			failed += 1
+			failure_log.append("%s: no test methods found (did it fail to compile?)" % suite_path)
+			continue
+
+		for method_name: String in method_names:
 			var test: DesktopServicesTestCase = suite_script.new()
 			test.before_each()
 			test.call(method_name)

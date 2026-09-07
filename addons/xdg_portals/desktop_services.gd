@@ -91,6 +91,11 @@ const INHIBIT_FLAGS_MASK: int = (
 )
 
 ## [enum Capability] to portal interface name.
+##
+## Descriptive, not the mechanism: capability availability comes from the
+## backend (see [method has_capability]), and a backend that is not a portal
+## serves capabilities without any of these interfaces existing. Useful for
+## diagnostics and for the Linux backend's own translation.
 const INTERFACE_NAMES: Dictionary = {
 	Capability.GAME_MODE: "org.freedesktop.portal.GameMode",
 	Capability.INHIBIT: "org.freedesktop.portal.Inhibit",
@@ -106,6 +111,7 @@ const SCHEME_SUPPORTED_MIN_VERSION: int = 5
 const _PRIORITY_NAMES: PackedStringArray = ["low", "normal", "high", "urgent"]
 
 var _backend: DesktopServicesBackend = null
+var _capabilities: Dictionary = {}
 var _interface_versions: Dictionary = {}
 
 
@@ -170,36 +176,43 @@ func get_unavailable_reason() -> String:
 
 # --- Capability discovery -----------------------------------------------------
 
-## Re-reads interface versions from the backend and emits
-## [signal capabilities_changed].
+## Re-reads capabilities, and any portal interface versions behind them, from
+## the backend and emits [signal capabilities_changed].
 func refresh_capabilities() -> void:
 	_ensure_backend()
-	_interface_versions = _backend.get_interface_versions()
+	_capabilities = _backend.get_capabilities()
+	_interface_versions = {}
+	for capability: int in Capability.values():
+		_interface_versions[capability] = _backend.get_interface_version(capability)
 	capabilities_changed.emit()
 
 
 ## Maps every [enum Capability] to whether it is usable right now.
 func get_capabilities() -> Dictionary:
 	var capabilities: Dictionary = {}
-	for capability: int in INTERFACE_NAMES:
-		capabilities[capability] = get_interface_version(capability) >= 0
+	for capability: int in Capability.values():
+		capabilities[capability] = has_capability(capability)
 	return capabilities
 
 
-## Whether [param capability] is exported by the running portal service.
+## Whether [param capability] can be used with the current backend.
 func has_capability(capability: Capability) -> bool:
-	return get_interface_version(capability) >= 0
+	if not is_available():
+		return false
+	return bool(_capabilities.get(capability, false))
 
 
-## Version of the interface behind [param capability], or [code]-1[/code] when it
-## is unavailable or unknown.
+## Version of the [b]portal interface[/b] behind [param capability], or
+## [code]-1[/code] when there is none to report.
+##
+## This is portal-specific and is not how availability is decided — use
+## [method has_capability] for that. A backend that is not a portal has no
+## interface to version and answers [code]-1[/code] for everything while still
+## serving the capabilities it does have.
 func get_interface_version(capability: Capability) -> int:
 	if not is_available():
 		return -1
-	var name: String = INTERFACE_NAMES.get(capability, "")
-	if name.is_empty():
-		return -1
-	return int(_interface_versions.get(name, -1))
+	return int(_interface_versions.get(capability, -1))
 
 
 # --- org.freedesktop.portal.GameMode -----------------------------------------

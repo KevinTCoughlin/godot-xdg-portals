@@ -68,7 +68,7 @@ func test_action_invoked_is_forwarded() -> void:
 
 
 func test_missing_capability_skips_the_backend() -> void:
-	mock.interface_versions["org.freedesktop.portal.Notification"] = -1
+	mock.capabilities[Facade.Capability.NOTIFICATION] = false
 	portal.refresh_capabilities()
 	assert_false(portal.add_notification("save", "Saved"))
 	assert_false(portal.remove_notification("save"))

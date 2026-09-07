@@ -32,11 +32,5 @@ func get_unavailable_reason() -> String:
 	return reason
 
 
-func get_interface_versions() -> Dictionary:
-	return {
-		"org.freedesktop.portal.GameMode": -1,
-		"org.freedesktop.portal.Inhibit": -1,
-		"org.freedesktop.portal.PowerProfileMonitor": -1,
-		"org.freedesktop.portal.OpenURI": -1,
-		"org.freedesktop.portal.Notification": -1,
-	}
+# Every capability is absent here, which is exactly the contract's default, so
+# get_capabilities() and get_interface_version() are deliberately not overridden.

@@ -13,18 +13,9 @@ class_name DesktopServicesMacBackend
 ## packaging requirements on the consuming game. See
 ## [url=../../docs/roadmap.md]the roadmap[/url]. Every other call inherits the
 ## contract's honest default, exactly as the null backend does.
-##
-## [b]Known wart, and it outlived the rename.[/b] [method get_interface_versions]
-## is keyed by [code]org.freedesktop.portal.*[/code] names because that is still
-## the vocabulary the facade uses to derive capabilities. macOS exports no such
-## interface and claims none: the key is an index into the facade's capability
-## table, not an assertion about D-Bus. Renaming the facade fixed the name a game
-## sees; it did not fix this, which needs the backend contract to report
-## capabilities directly and [code]get_interface_version()[/code] to become the
-## portal-specific extra it always was. That is a separate change, tracked in the
-## roadmap.
 
-## Source of the interface keys, so this cannot drift from the facade's table.
+## Source of the [code]Capability[/code] values, so this cannot drift from the
+## facade's enum.
 const _FACADE := preload("res://addons/xdg_portals/desktop_services.gd")
 
 var _native: RefCounted = null
@@ -69,12 +60,14 @@ func get_unavailable_reason() -> String:
 	return ""
 
 
-func get_interface_versions() -> Dictionary:
-	var versions: Dictionary = {}
-	for capability: int in _FACADE.INTERFACE_NAMES:
-		versions[_FACADE.INTERFACE_NAMES[capability]] = -1
-	versions[_FACADE.INTERFACE_NAMES[_FACADE.Capability.POWER_PROFILE_MONITOR]] = 1
-	return versions
+## Power-saver state, and nothing else. The four capabilities this backend
+## cannot serve are simply absent, which the contract already reads as
+## unavailable. There is no portal here and none is claimed:
+## [method get_interface_version] inherits [code]-1[/code].
+func get_capabilities() -> Dictionary:
+	if _native == null:
+		return {}
+	return {_FACADE.Capability.POWER_PROFILE_MONITOR: true}
 
 
 func power_saver_state() -> int:

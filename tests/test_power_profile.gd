@@ -5,6 +5,8 @@ extends DesktopServicesTestCase
 
 ## org.freedesktop.portal.PowerProfileMonitor coverage.
 
+const Facade := DesktopServicesTestCase.FACADE_SCRIPT
+
 
 func test_power_saver_enabled() -> void:
 	mock.next_power_saver_state = 1
@@ -33,6 +35,6 @@ func test_power_saver_changes_are_forwarded() -> void:
 
 
 func test_missing_capability_is_null() -> void:
-	mock.interface_versions["org.freedesktop.portal.PowerProfileMonitor"] = -1
+	mock.capabilities[Facade.Capability.POWER_PROFILE_MONITOR] = false
 	portal.refresh_capabilities()
 	assert_null(portal.is_power_saver_enabled())

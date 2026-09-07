@@ -31,9 +31,24 @@ func get_backend_name() -> String:
 func is_available() -> bool:
 	return false
 
-## Maps portal interface names to their exported version, or [code]-1[/code].
-func get_interface_versions() -> Dictionary:
+## Maps [code]DesktopServices.Capability[/code] values to whether this backend
+## can serve them. A capability missing from the dictionary is unavailable, so
+## the empty default is the honest answer for a backend that serves nothing.
+##
+## This is the mechanism the facade uses for [code]has_capability()[/code].
+## Every backend can answer it, whatever it is built on.
+func get_capabilities() -> Dictionary:
 	return {}
+
+## Version of the portal interface behind [param _capability], or [code]-1[/code].
+##
+## Portal-specific, and an extra rather than the mechanism: a backend that is
+## not a portal has no interface to version and inherits [code]-1[/code], which
+## already means "no answer" everywhere else in this API. Do not use this to
+## decide whether a capability is available — that is
+## [method get_capabilities].
+func get_interface_version(_capability: int) -> int:
+	return -1
 
 ## Returns an [code]DesktopServices.GameModeStatus[/code] value.
 func game_mode_query_status(_pid: int) -> int:
