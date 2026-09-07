@@ -1,8 +1,8 @@
 # SPDX-FileCopyrightText: 2026 Kevin Coughlin
 #
 # SPDX-License-Identifier: MIT
-extends XDGPortalBackend
-class_name XDGPortalNativeBackend
+extends DesktopServicesBackend
+class_name DesktopServicesNativeBackend
 
 ## Thin adapter over the [code]XdgPortalNative[/code] GDExtension class.
 ##
@@ -15,14 +15,14 @@ class_name XDGPortalNativeBackend
 ## Source of the flag values, so the mask below cannot drift from the enum the
 ## facade publishes. Preloaded rather than read off the autoload: backends are
 ## constructed directly by the test suite, where no autoload exists.
-const _FACADE := preload("res://addons/xdg_portals/xdg_portal.gd")
+const _FACADE := preload("res://addons/xdg_portals/desktop_services.gd")
 
 var _native: RefCounted = null
 
 
 ## Returns a ready backend, or [code]null[/code] when the native class is missing
 ## or could not reach the session bus.
-static func create() -> XDGPortalNativeBackend:
+static func create() -> DesktopServicesNativeBackend:
 	if not ClassDB.class_exists(&"XdgPortalNative"):
 		return null
 	if not ClassDB.can_instantiate(&"XdgPortalNative"):
@@ -32,7 +32,7 @@ static func create() -> XDGPortalNativeBackend:
 	if native == null or not (native is RefCounted):
 		return null
 
-	var backend := XDGPortalNativeBackend.new()
+	var backend := DesktopServicesNativeBackend.new()
 	backend._bind(native as RefCounted)
 	return backend
 
@@ -93,7 +93,7 @@ func inhibit(flags: int, reason: String, parent_window: String) -> String:
 ## The portal accepts all four bits. Whether the desktop's backend acts on each
 ## one varies (wlroots compositors commonly ignore logout and user-switch), and
 ## the portal does not report which it honoured — see
-## [method XDGPortalBackend.get_supported_inhibit_flags].
+## [method DesktopServicesBackend.get_supported_inhibit_flags].
 func get_supported_inhibit_flags() -> int:
 	if _native == null:
 		return 0

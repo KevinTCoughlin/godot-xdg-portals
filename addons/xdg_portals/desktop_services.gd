@@ -5,12 +5,12 @@ extends Node
 
 ## Typed, sandbox-safe access to selected XDG Desktop Portal APIs.
 ##
-## This node is installed as the [code]XDGPortal[/code] autoload by the
+## This node is installed as the [code]DesktopServices[/code] autoload by the
 ## [code]xdg_portals[/code] plugin. It is the only class game code needs: it
 ## validates arguments, hides D-Bus entirely, and delegates to a backend that is
-## chosen at startup ([XDGPortalNativeBackend] on Linux with a session bus,
-## [XDGPortalNullBackend] everywhere else) or injected by tests
-## ([XDGPortalMockBackend]).
+## chosen at startup ([DesktopServicesNativeBackend] on Linux with a session bus,
+## [DesktopServicesNullBackend] everywhere else) or injected by tests
+## ([DesktopServicesMockBackend]).
 ##
 ## Unknown state is reported honestly. Reads that cannot be answered return
 ## [code]null[/code] or [constant GameModeStatus.UNKNOWN]; operations that could
@@ -19,10 +19,10 @@ extends Node
 ##
 ## [codeblock]
 ## func _ready() -> void:
-##     if XDGPortal.has_capability(XDGPortal.Capability.GAME_MODE):
-##         XDGPortal.request_game_mode()
-##     XDGPortal.request_completed.connect(_on_request_completed)
-##     var handle := XDGPortal.inhibit(XDGPortal.InhibitFlags.IDLE, "Cutscene")
+##     if DesktopServices.has_capability(DesktopServices.Capability.GAME_MODE):
+##         DesktopServices.request_game_mode()
+##     DesktopServices.request_completed.connect(_on_request_completed)
+##     var handle := DesktopServices.inhibit(DesktopServices.InhibitFlags.IDLE, "Cutscene")
 ## [/codeblock]
 
 ## Emitted after backend selection or injection, once capabilities have been
@@ -105,7 +105,7 @@ const SCHEME_SUPPORTED_MIN_VERSION: int = 5
 
 const _PRIORITY_NAMES: PackedStringArray = ["low", "normal", "high", "urgent"]
 
-var _backend: XDGPortalBackend = null
+var _backend: DesktopServicesBackend = null
 var _interface_versions: Dictionary = {}
 
 
@@ -124,10 +124,10 @@ func _exit_tree() -> void:
 # --- Backend management -------------------------------------------------------
 
 ## Replaces the active backend. Tests use this to inject an
-## [XDGPortalMockBackend]; the previous backend is shut down and disconnected.
-func set_backend(backend: XDGPortalBackend) -> void:
+## [DesktopServicesMockBackend]; the previous backend is shut down and disconnected.
+func set_backend(backend: DesktopServicesBackend) -> void:
 	if backend == null:
-		push_error("XDGPortal.set_backend() requires a backend; use XDGPortalNullBackend.new().")
+		push_error("DesktopServices.set_backend() requires a backend; use DesktopServicesNullBackend.new().")
 		return
 
 	if _backend != null:
@@ -140,7 +140,7 @@ func set_backend(backend: XDGPortalBackend) -> void:
 
 
 ## The backend currently in use, selecting the default one if needed.
-func get_backend() -> XDGPortalBackend:
+func get_backend() -> DesktopServicesBackend:
 	_ensure_backend()
 	return _backend
 
@@ -245,7 +245,7 @@ func inhibit(flags: int, reason: String, parent_window: String = "") -> String:
 	if not has_capability(Capability.INHIBIT):
 		return ""
 	if flags <= 0 or (flags & ~INHIBIT_FLAGS_MASK) != 0:
-		push_error("XDGPortal.inhibit() called with invalid flags: %d." % flags)
+		push_error("DesktopServices.inhibit() called with invalid flags: %d." % flags)
 		portal_error.emit("Inhibit.Inhibit", "Invalid inhibit flags: %d." % flags)
 		return ""
 	return _backend.inhibit(flags, reason, parent_window)
@@ -257,9 +257,9 @@ func inhibit(flags: int, reason: String, parent_window: String = "") -> String:
 ## Use it to find out what a platform can request before asking:
 ##
 ## [codeblock]
-## var wanted := XDGPortal.InhibitFlags.IDLE | XDGPortal.InhibitFlags.SUSPEND
-## if wanted & XDGPortal.get_supported_inhibit_flags() == wanted:
-##     handle = XDGPortal.inhibit(wanted, "Cutscene")
+## var wanted := DesktopServices.InhibitFlags.IDLE | DesktopServices.InhibitFlags.SUSPEND
+## if wanted & DesktopServices.get_supported_inhibit_flags() == wanted:
+##     handle = DesktopServices.inhibit(wanted, "Cutscene")
 ## [/codeblock]
 ##
 ## This is a static property of the backend, not a report of what the session
@@ -349,7 +349,7 @@ func add_notification(
 	if not has_capability(Capability.NOTIFICATION):
 		return false
 	if id.is_empty():
-		push_error("XDGPortal.add_notification() requires a non-empty id.")
+		push_error("DesktopServices.add_notification() requires a non-empty id.")
 		return false
 	return _backend.add_notification(id, title, body, _priority_name(priority))
 
@@ -373,47 +373,47 @@ func _ensure_backend() -> void:
 		set_backend(_create_default_backend())
 
 
-func _create_default_backend() -> XDGPortalBackend:
+func _create_default_backend() -> DesktopServicesBackend:
 	if OS.has_feature("web"):
-		return XDGPortalNullBackend.new("Desktop services are unavailable in a web build.")
+		return DesktopServicesNullBackend.new("Desktop services are unavailable in a web build.")
 
 	if OS.get_name() == "macOS":
 		# macOS backs one capability of the five; the rest report unavailable
 		# through the same contract the null backend uses.
-		var mac: XDGPortalMacBackend = XDGPortalMacBackend.create()
+		var mac: DesktopServicesMacBackend = DesktopServicesMacBackend.create()
 		if mac != null:
 			return mac
-		return XDGPortalNullBackend.new(
+		return DesktopServicesNullBackend.new(
 			"The MacPowerMonitor extension is not loaded; build it or use a release archive."
 		)
 
 	if OS.get_name() != "Linux":
-		return XDGPortalNullBackend.new(
+		return DesktopServicesNullBackend.new(
 			"XDG Desktop Portals are only available on Linux; running on %s." % OS.get_name()
 		)
 
-	var native: XDGPortalNativeBackend = XDGPortalNativeBackend.create()
+	var native: DesktopServicesNativeBackend = DesktopServicesNativeBackend.create()
 	if native == null:
-		return XDGPortalNullBackend.new(
+		return DesktopServicesNullBackend.new(
 			"The XdgPortalNative extension is not loaded; build it or use a release archive."
 		)
 	if not native.is_available():
 		var reason: String = native.get_unavailable_reason()
 		native.shutdown()
 		if reason.is_empty():
-			return XDGPortalNullBackend.new("Could not reach the session bus.")
-		return XDGPortalNullBackend.new("Could not reach the session bus: %s" % reason)
+			return DesktopServicesNullBackend.new("Could not reach the session bus.")
+		return DesktopServicesNullBackend.new("Could not reach the session bus: %s" % reason)
 	return native
 
 
-func _connect_backend(backend: XDGPortalBackend) -> void:
+func _connect_backend(backend: DesktopServicesBackend) -> void:
 	backend.power_saver_changed.connect(_on_power_saver_changed)
 	backend.request_completed.connect(_on_request_completed)
 	backend.notification_action_invoked.connect(_on_notification_action_invoked)
 	backend.portal_error.connect(_on_portal_error)
 
 
-func _disconnect_backend(backend: XDGPortalBackend) -> void:
+func _disconnect_backend(backend: DesktopServicesBackend) -> void:
 	backend.power_saver_changed.disconnect(_on_power_saver_changed)
 	backend.request_completed.disconnect(_on_request_completed)
 	backend.notification_action_invoked.disconnect(_on_notification_action_invoked)

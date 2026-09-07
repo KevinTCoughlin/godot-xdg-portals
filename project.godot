@@ -14,7 +14,7 @@ config/icon="res://demo/icon.svg"
 
 [autoload]
 
-XDGPortal="*res://addons/xdg_portals/xdg_portal.gd"
+DesktopServices="*res://addons/xdg_portals/desktop_services.gd"
 
 [display]
 

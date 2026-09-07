@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: 2026 Kevin Coughlin
 #
 # SPDX-License-Identifier: MIT
-extends XDGPortalTestCase
+extends DesktopServicesTestCase
 
 ## org.freedesktop.portal.PowerProfileMonitor coverage.
 

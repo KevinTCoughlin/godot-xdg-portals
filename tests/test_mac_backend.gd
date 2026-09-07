@@ -1,9 +1,9 @@
 # SPDX-FileCopyrightText: 2026 Kevin Coughlin
 #
 # SPDX-License-Identifier: MIT
-extends XDGPortalTestCase
+extends DesktopServicesTestCase
 
-## XDGPortalMacBackend adapter coverage.
+## DesktopServicesMacBackend adapter coverage.
 ##
 ## The macOS extension cannot be loaded on the platform this suite runs on, so
 ## these tests bind the adapter to a stub standing in for MacPowerMonitor —
@@ -12,7 +12,7 @@ extends XDGPortalTestCase
 ## forwarding. Whether Low Power Mode is read correctly is a question only a
 ## Mac can answer, and it is a row in docs/native-testing.md.
 
-const Facade := XDGPortalTestCase.FACADE_SCRIPT
+const Facade := DesktopServicesTestCase.FACADE_SCRIPT
 
 
 class FakeMonitor:
@@ -30,15 +30,15 @@ class FakeMonitor:
 		power_saver_changed.emit(enabled)
 
 
-func _bound_backend(fake: FakeMonitor) -> XDGPortalMacBackend:
-	var backend := XDGPortalMacBackend.new()
+func _bound_backend(fake: FakeMonitor) -> DesktopServicesMacBackend:
+	var backend := DesktopServicesMacBackend.new()
 	backend._bind(fake)
 	return backend
 
 
 func test_create_returns_null_without_the_extension() -> void:
 	# This suite never runs on macOS, so the class is genuinely absent here.
-	assert_null(XDGPortalMacBackend.create(), "no extension means no backend")
+	assert_null(DesktopServicesMacBackend.create(), "no extension means no backend")
 
 
 func test_reports_only_the_power_capability() -> void:

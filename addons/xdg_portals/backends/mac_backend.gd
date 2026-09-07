@@ -1,8 +1,8 @@
 # SPDX-FileCopyrightText: 2026 Kevin Coughlin
 #
 # SPDX-License-Identifier: MIT
-extends XDGPortalBackend
-class_name XDGPortalMacBackend
+extends DesktopServicesBackend
+class_name DesktopServicesMacBackend
 
 ## Backend over the macOS [code]MacPowerMonitor[/code] GDExtension class.
 ##
@@ -14,22 +14,25 @@ class_name XDGPortalMacBackend
 ## [url=../../docs/roadmap.md]the roadmap[/url]. Every other call inherits the
 ## contract's honest default, exactly as the null backend does.
 ##
-## [b]Known wart.[/b] [method get_interface_versions] is keyed by
-## [code]org.freedesktop.portal.*[/code] names because that is the vocabulary
-## the facade currently uses to derive capabilities. macOS exports no such
+## [b]Known wart, and it outlived the rename.[/b] [method get_interface_versions]
+## is keyed by [code]org.freedesktop.portal.*[/code] names because that is still
+## the vocabulary the facade uses to derive capabilities. macOS exports no such
 ## interface and claims none: the key is an index into the facade's capability
-## table, not an assertion about D-Bus. This is the clearest argument for the
-## neutral facade rename tracked in the roadmap, and it should not outlive it.
+## table, not an assertion about D-Bus. Renaming the facade fixed the name a game
+## sees; it did not fix this, which needs the backend contract to report
+## capabilities directly and [code]get_interface_version()[/code] to become the
+## portal-specific extra it always was. That is a separate change, tracked in the
+## roadmap.
 
 ## Source of the interface keys, so this cannot drift from the facade's table.
-const _FACADE := preload("res://addons/xdg_portals/xdg_portal.gd")
+const _FACADE := preload("res://addons/xdg_portals/desktop_services.gd")
 
 var _native: RefCounted = null
 
 
 ## Returns a ready backend, or [code]null[/code] when the native class is not
 ## registered — which is every platform except macOS.
-static func create() -> XDGPortalMacBackend:
+static func create() -> DesktopServicesMacBackend:
 	if not ClassDB.class_exists(&"MacPowerMonitor"):
 		return null
 	if not ClassDB.can_instantiate(&"MacPowerMonitor"):
@@ -39,7 +42,7 @@ static func create() -> XDGPortalMacBackend:
 	if native == null or not (native is RefCounted):
 		return null
 
-	var backend := XDGPortalMacBackend.new()
+	var backend := DesktopServicesMacBackend.new()
 	backend._bind(native as RefCounted)
 	return backend
 

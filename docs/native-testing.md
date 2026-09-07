@@ -10,7 +10,7 @@ a real desktop can prove.
 ./scripts/run_tests.sh
 ```
 
-70 tests across seven suites, all through `XDGPortalMockBackend`. No bus, no
+70 tests across seven suites, all through `DesktopServicesMockBackend`. No bus, no
 display, no portal service, no timers — the same result on a laptop and on a
 bare runner. This covers the facade: validation, capability gating, enum
 mapping, signal forwarding, and the honesty rules (`null` / `-1` / `""` / `false`

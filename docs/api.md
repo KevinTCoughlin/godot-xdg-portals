@@ -1,7 +1,7 @@
 # API reference
 
-Everything a game needs is on the `XDGPortal` autoload, installed by the
-`xdg_portals` plugin (`res://addons/xdg_portals/xdg_portal.gd`).
+Everything a game needs is on the `DesktopServices` autoload, installed by the
+`xdg_portals` plugin (`res://addons/xdg_portals/desktop_services.gd`).
 
 The API has one rule that governs every return value: **an unavailable operation
 is never reported as a success.** Reads that cannot be answered return `null` or
@@ -14,8 +14,8 @@ empty handle.
 | --- | --- | --- |
 | `is_available()` | `bool` | Whether portal calls can be attempted at all. |
 | `get_unavailable_reason()` | `String` | Empty when available; otherwise why not. |
-| `get_backend_name()` | `String` | `"native"`, `"null"` or `"mock"`. |
-| `get_backend()` | `XDGPortalBackend` | The active backend. |
+| `get_backend_name()` | `String` | `"native"`, `"macos"`, `"null"` or `"mock"`. |
+| `get_backend()` | `DesktopServicesBackend` | The active backend. |
 | `set_backend(backend)` | `void` | Injects a backend; see [Testing](#testing). |
 | `refresh_capabilities()` | `void` | Re-reads interface versions, emits `capabilities_changed`. |
 | `get_capabilities()` | `Dictionary` | `Capability` → `bool`. |
@@ -61,9 +61,9 @@ for, or `0` when inhibition is unavailable. Against a portal that is every
 documented bit; it is lower only on a backend that cannot express one.
 
 ```gdscript
-var wanted := XDGPortal.InhibitFlags.IDLE | XDGPortal.InhibitFlags.SUSPEND
-if wanted & XDGPortal.get_supported_inhibit_flags() == wanted:
-    handle = XDGPortal.inhibit(wanted, "Cutscene")
+var wanted := DesktopServices.InhibitFlags.IDLE | DesktopServices.InhibitFlags.SUSPEND
+if wanted & DesktopServices.get_supported_inhibit_flags() == wanted:
+    handle = DesktopServices.inhibit(wanted, "Cutscene")
 ```
 
 It does not gate `inhibit()`, and it is not a report of what the session did.
@@ -172,23 +172,23 @@ anything non-zero means the request did not do what was asked.
 Inject a mock backend to drive portal behaviour deterministically:
 
 ```gdscript
-var mock := XDGPortalMockBackend.new()
-mock.next_game_mode_status = XDGPortal.GameModeStatus.REGISTERED
+var mock := DesktopServicesMockBackend.new()
+mock.next_game_mode_status = DesktopServices.GameModeStatus.REGISTERED
 mock.next_power_saver_state = 1
-XDGPortal.set_backend(mock)
+DesktopServices.set_backend(mock)
 
-XDGPortal.request_game_mode()
+DesktopServices.request_game_mode()
 assert(mock.calls_to("game_mode_register").size() == 1)
 
 # Complete an interactive request without any portal or timer involved.
-var handle := XDGPortal.inhibit(XDGPortal.InhibitFlags.IDLE, "Cutscene")
-mock.complete_request(handle, XDGPortal.Response.SUCCESS)
+var handle := DesktopServices.inhibit(DesktopServices.InhibitFlags.IDLE, "Cutscene")
+mock.complete_request(handle, DesktopServices.Response.SUCCESS)
 ```
 
-`XDGPortalMockBackend` records every call in `calls` (and `calls_to(method)`),
+`DesktopServicesMockBackend` records every call in `calls` (and `calls_to(method)`),
 answers from its `next_*` fields, and can emit any backend signal on demand via
 `complete_request()`, `emit_power_saver()`, `emit_action()` and `emit_error()`.
 
-`XDGPortalNullBackend` is the other injectable backend: it is what the facade
+`DesktopServicesNullBackend` is the other injectable backend: it is what the facade
 selects wherever portals cannot exist, and it is useful for asserting that a
 game behaves on a portal-less machine.

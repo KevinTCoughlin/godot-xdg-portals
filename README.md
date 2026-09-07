@@ -42,7 +42,7 @@ exposes no way to make an arbitrary D-Bus call.
    and verify it against the published `.sha256` file.
 2. Extract its `addons/xdg_portals` directory into your project's `addons/`.
 3. Enable **XDG Portals** in *Project → Project Settings → Plugins*. The plugin
-   installs the `XDGPortal` autoload for you.
+   installs the `DesktopServices` autoload for you.
 
 The archive contains the addon (GDScript facade, backends, `.gdextension`
 descriptor), the prebuilt Linux x86-64 libraries for all three targets —
@@ -71,41 +71,41 @@ an existing checkout with `--godot-cpp /path/to/godot-cpp` to skip the download.
 
 ## Usage
 
-The plugin installs a single autoload, `XDGPortal`. Ask what is available before
+The plugin installs a single autoload, `DesktopServices`. Ask what is available before
 using it — a portal that is not exported is reported honestly rather than
 emulated.
 
 ```gdscript
 func _ready() -> void:
-    if not XDGPortal.is_available():
-        print("No portals here: %s" % XDGPortal.get_unavailable_reason())
+    if not DesktopServices.is_available():
+        print("No portals here: %s" % DesktopServices.get_unavailable_reason())
         return
 
-    XDGPortal.request_completed.connect(_on_request_completed)
-    XDGPortal.power_saver_changed.connect(_on_power_saver_changed)
+    DesktopServices.request_completed.connect(_on_request_completed)
+    DesktopServices.power_saver_changed.connect(_on_power_saver_changed)
 
-    if XDGPortal.has_capability(XDGPortal.Capability.GAME_MODE):
-        XDGPortal.request_game_mode()
+    if DesktopServices.has_capability(DesktopServices.Capability.GAME_MODE):
+        DesktopServices.request_game_mode()
 
 
 var _inhibit_handle := ""
 
 func begin_cutscene() -> void:
-    var flags := XDGPortal.InhibitFlags.IDLE | XDGPortal.InhibitFlags.SUSPEND
-    _inhibit_handle = XDGPortal.inhibit(flags, "Playing a cutscene")
+    var flags := DesktopServices.InhibitFlags.IDLE | DesktopServices.InhibitFlags.SUSPEND
+    _inhibit_handle = DesktopServices.inhibit(flags, "Playing a cutscene")
 
 func end_cutscene() -> void:
     if not _inhibit_handle.is_empty():
-        XDGPortal.close_request(_inhibit_handle)
+        DesktopServices.close_request(_inhibit_handle)
         _inhibit_handle = ""
 
 
 func open_manual() -> void:
     # Returns a request handle; the outcome arrives on `request_completed`.
-    XDGPortal.open_uri("https://example.com/manual")
+    DesktopServices.open_uri("https://example.com/manual")
 
 func _on_request_completed(handle: String, response: int, results: Dictionary) -> void:
-    if response == XDGPortal.Response.SUCCESS:
+    if response == DesktopServices.Response.SUCCESS:
         print("%s succeeded: %s" % [handle, results])
 
 
@@ -116,7 +116,7 @@ func _on_power_saver_changed(enabled: bool) -> void:
 Unknown state is always represented honestly:
 
 ```gdscript
-var saving: Variant = XDGPortal.is_power_saver_enabled()
+var saving: Variant = DesktopServices.is_power_saver_enabled()
 if saving == null:
     pass  # The portal could not tell us; do not guess.
 elif saving:
@@ -152,7 +152,7 @@ permission is required for them either.
 ```
 
 The suite is entirely mock-backed and deterministic: it injects an
-`XDGPortalMockBackend`, so it needs no session bus, no display and no portal
+`DesktopServicesMockBackend`, so it needs no session bus, no display and no portal
 service, and behaves identically on a laptop and on CI.
 
 Testing the *native* backend against a real portal service cannot be done in

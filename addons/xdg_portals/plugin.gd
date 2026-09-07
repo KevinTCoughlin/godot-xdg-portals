@@ -4,10 +4,10 @@
 @tool
 extends EditorPlugin
 
-## Installs and removes the [code]XDGPortal[/code] autoload.
+## Installs and removes the [code]DesktopServices[/code] autoload.
 
-const AUTOLOAD_NAME := "XDGPortal"
-const AUTOLOAD_PATH := "res://addons/xdg_portals/xdg_portal.gd"
+const AUTOLOAD_NAME := "DesktopServices"
+const AUTOLOAD_PATH := "res://addons/xdg_portals/desktop_services.gd"
 
 
 func _enter_tree() -> void:

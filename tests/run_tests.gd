@@ -39,7 +39,7 @@ func _initialize() -> void:
 
 		var suite_name: String = suite_path.get_file().get_basename()
 		for method_name: String in _test_methods(suite_script):
-			var test: XDGPortalTestCase = suite_script.new()
+			var test: DesktopServicesTestCase = suite_script.new()
 			test.before_each()
 			test.call(method_name)
 			test.after_each()

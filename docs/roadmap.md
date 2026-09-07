@@ -37,7 +37,7 @@ As of Godot 4.4, C# bindings are generated only for core engine classes, so
 GDExtension types are reachable from C# only dynamically:
 
 ```csharp
-var portal = GetNode("/root/XDGPortal");
+var portal = GetNode("/root/DesktopServices");
 var handle = portal.Call("inhibit", 8, "Cutscene").AsString();
 ```
 
@@ -180,7 +180,7 @@ consuming game.
 Two things would have to be settled before any such code, and neither is about
 platform APIs:
 
-- **The facade name.** `XDGPortal`, and a `Capability` enum mapping 1:1 to
+- **The facade name.** `DesktopServices`, and a `Capability` enum mapping 1:1 to
   `org.freedesktop.portal.*` interface names, cannot honestly front a Win32
   backend. Pre-1.0 this is a permitted break, but it is a break, and it wants
   deciding first rather than during.
@@ -195,6 +195,30 @@ platform APIs:
 Note also that `DisplayServer.screen_set_keep_on()` already handles display
 sleep on all three platforms in the engine itself, so the cross-platform slice
 worth building is smaller than the table suggests.
+
+## Capability vocabulary
+
+The backend contract reports availability through `get_interface_versions()`,
+keyed by `org.freedesktop.portal.*` interface names, and the facade derives
+`has_capability()` from it. That was exact while every backend was a portal. It
+is not any more: the macOS backend has to answer in a vocabulary describing
+D-Bus interfaces it does not have, and says so in a comment rather than
+pretending.
+
+Renaming the facade to `DesktopServices` fixed the name a game sees. It did not
+fix this. The change that does is to split the two questions the dictionary
+currently conflates:
+
+- `get_capabilities()` on the backend — which capabilities are usable, keyed by
+  `Capability`. Every backend can answer this honestly.
+- `get_interface_version(capability)` — the portal interface version, and a
+  portal-specific extra rather than the mechanism. `-1` on any backend that is
+  not a portal, which is already what it means when an interface is absent.
+
+The facade's public surface barely moves: `has_capability()` reads the first,
+`get_interface_version()` the second, both already exist. The work is in the
+four backends and their tests. Worth doing before a second non-portal backend
+makes the same compromise twice.
 
 ## Under consideration
 

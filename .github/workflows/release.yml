@@ -71,7 +71,7 @@ jobs:
           test -f "${stage}/addons/xdg_portals/bin/libxdg_portals.linux.editor.x86_64.so"
           test -f "${stage}/addons/xdg_portals/xdg_portals.gdextension"
           test -f "${stage}/addons/xdg_portals/plugin.cfg"
-          test -f "${stage}/addons/xdg_portals/xdg_portal.gd"
+          test -f "${stage}/addons/xdg_portals/desktop_services.gd"
           test -f "${stage}/README.md"
           test -f "${stage}/LICENSE"
           test -f "${stage}/THIRD_PARTY_NOTICES.md"

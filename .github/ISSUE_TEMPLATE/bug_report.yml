@@ -18,7 +18,7 @@ body:
       label: What happened
       description: What you did, what you expected, and what you got instead.
       placeholder: |
-        Called XDGPortal.inhibit(XDGPortal.InhibitFlags.IDLE, "Cutscene").
+        Called DesktopServices.inhibit(DesktopServices.InhibitFlags.IDLE, "Cutscene").
         Expected a request handle; got an empty string.
     validations:
       required: true
@@ -53,7 +53,7 @@ body:
     id: backend
     attributes:
       label: Which backend is active?
-      description: "`print(XDGPortal.get_backend_name())`"
+      description: "`print(DesktopServices.get_backend_name())`"
       options:
         - native
         - "null"

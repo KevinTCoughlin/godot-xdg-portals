@@ -1,11 +1,11 @@
 # SPDX-FileCopyrightText: 2026 Kevin Coughlin
 #
 # SPDX-License-Identifier: MIT
-extends XDGPortalTestCase
+extends DesktopServicesTestCase
 
 ## org.freedesktop.portal.Notification coverage.
 
-const Facade := XDGPortalTestCase.FACADE_SCRIPT
+const Facade := DesktopServicesTestCase.FACADE_SCRIPT
 
 
 func test_add_notification_forwards_every_field() -> void:
