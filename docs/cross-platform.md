@@ -1,18 +1,19 @@
 # Using this in a cross-platform game
 
-This addon is Linux-only by design, and
+This addon is built around Linux desktop portals, and implements only a narrow
+slice elsewhere — power-saver state on macOS, nothing on Windows.
 [`roadmap.md`](roadmap.md#windows-and-macos-variants) works through why. That
-does not make it awkward to ship on Windows and macOS — but it does mean the
-game decides what happens where a portal is unavailable, because only the game
+does not make it awkward to ship cross-platform, but it does mean the game
+decides what happens where a capability is unavailable, because only the game
 knows what it wants instead. This page is the pattern.
 
 ## Exporting needs no configuration
 
-`xdg_portals.gdextension` lists only `linux.*` library entries, so a Windows or
-macOS export carries no native library — Godot matches library keys against the
-export's feature tags and there is nothing to match. At runtime the facade's
-`ClassDB` lookup for `XdgPortalNative` fails, the null backend is selected, and
-every call returns an honest "unavailable".
+`xdg_portals.gdextension` keys its libraries by platform, so an export carries
+only what matches its feature tags — the Linux portal bridge on Linux, the macOS
+power monitor on macOS, and nothing at all on Windows, mobile or web. Where no
+library matches, the facade's `ClassDB` lookup fails, the null backend is
+selected, and every call returns an honest "unavailable".
 
 One addon folder, no per-platform export presets, no missing-library error, and
 nothing to strip before shipping.
@@ -46,7 +47,7 @@ and two of those ship in the engine already:
 | `OPEN_URI` | `OS.shell_open()` | Already `NSWorkspace.open` / `ShellExecuteExW` / `xdg-open`. Inside Flatpak, `xdg-open` is itself a portal shim. |
 | `GAME_MODE` | nothing to do | Windows and macOS decide this themselves; there is no API to ask, and nothing is lost by not asking. |
 | `NOTIFICATION` | in-game UI | What most games want regardless. OS notifications from a fullscreen game are of marginal value, and native ones carry packaging requirements. |
-| `POWER_PROFILE_MONITOR` | **no equivalent** | The one real gap. Answer it with a player-facing quality setting, which is worth having anyway. |
+| `POWER_PROFILE_MONITOR` | macOS: covered. Windows: **no equivalent** | The addon reads Low Power Mode natively on macOS, so this answers itself there. On Windows it is still `null` — answer that with a player-facing quality setting, which is worth having anyway. |
 
 A single autoload in the game is enough to hold all of it:
 
@@ -96,11 +97,12 @@ if XDGPortal.is_power_saver_enabled():
 ```
 
 `null` means the addon could not find out — on Windows, on a headless server, or
-on a Linux desktop running neither `power-profiles-daemon` nor `tuned`. The
-correct fallback is whatever the player chose in your settings menu, not an
-assumption in either direction. A game that ships a battery-saver toggle needs
-no platform-specific code here at all: the portal simply drives that toggle
-automatically where it can.
+on a Linux desktop running neither `power-profiles-daemon` nor `tuned`. On
+macOS the value is always knowable, so `null` there means the read itself
+failed. The correct fallback is whatever the player chose in your settings menu,
+not an assumption in either direction. A game that ships a battery-saver toggle
+needs no platform-specific code here at all: the addon simply drives that toggle
+automatically wherever it can answer.
 
 ## What not to do
 
@@ -118,5 +120,7 @@ automatically where it can.
 
 - [`api.md`](api.md) — every method, signal and enum
 - [`compatibility.md`](compatibility.md) — which backend runs where, and why
-- [`roadmap.md`](roadmap.md#windows-and-macos-variants) — why non-Linux is the
-  null backend rather than a native implementation
+- [`native-testing.md`](native-testing.md) — the manual checklists, including
+  the macOS rows CI cannot run
+- [`roadmap.md`](roadmap.md#windows-and-macos-variants) — why the non-Linux
+  surface is deliberately this narrow

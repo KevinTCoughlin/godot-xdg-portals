@@ -18,8 +18,8 @@ loads in later 4.x engines; the reverse is not true.
 | Linux x86-64 | native | Prebuilt in the release archive. |
 | Linux arm64 | native | Supported by the build; not prebuilt — run `scripts/build.sh` on the target. |
 | Linux, no session bus | null | Headless servers, containers, `--headless` CI. Reports GLib's own reason. |
-| Windows | null | No portal service exists. |
-| macOS | null | No portal service exists. |
+| Windows | null | No portal service exists, and no native equivalent is built. |
+| macOS | partial (`macos`) | Power-saver state only, via `MacPowerMonitor`. Universal (x86-64 + arm64); not prebuilt yet. The other four report unavailable. |
 | Android / iOS | null | No portal service exists. |
 | Web | null | Detected via `OS.has_feature("web")` before anything else. |
 

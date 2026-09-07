@@ -4,7 +4,7 @@ Typed, sandbox-safe access to selected [XDG Desktop Portal](https://flatpak.gith
 APIs from Godot 4.4+, as a GDExtension plus a small GDScript facade.
 
 It works on native Linux and inside Flatpak, hides D-Bus entirely from game
-code, and degrades safely everywhere else: on Windows, macOS, mobile, web and
+code, and degrades safely everywhere else: on Windows, mobile, web and
 headless Linux without a session bus, the addon loads a null backend and every
 call reports "unavailable" instead of crashing.
 
