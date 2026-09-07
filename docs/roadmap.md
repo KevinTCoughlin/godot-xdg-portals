@@ -99,9 +99,10 @@ object — so this does not compromise testability.
 Non-Linux is the null backend today, and that is a contract rather than a stub:
 the addon imports, the autoload installs, and every call reports "unavailable"
 with the platform named. The question is whether a *native* Windows and macOS
-variant should exist behind the same facade. It should not, and it is worth
-being precise about why, because "just call the platform API instead" is only
-true for one of the five interfaces.
+variant should exist behind the same facade. Mostly not — and it is worth being
+precise about which parts, because "just call the platform API instead" is only
+true for one of the five interfaces. Two are worth reconsidering; three are not,
+on grounds that no amount of effort changes.
 
 **Per interface.** Two have clean equivalents, one is already covered by the
 engine, one has no equivalent at all, and one changes what shipping a Godot game
@@ -153,20 +154,43 @@ looks like.
 | `IOKit`/`Foundation` Objective-C++ backend, `powrprof`/`shell32`/WinRT Win32 backend | the smallest part |
 | A neutral facade name and capability enum, since `Capability` maps 1:1 to `org.freedesktop.portal.*` interface names | breaking change for every consumer |
 | Three toolchains in CMake and CI, a universal `.dylib` (x86-64 + arm64), codesigning for macOS notifications | roughly triples build and release surface |
-| A manual desktop checklist per platform, on hardware this project does not have | the actual blocker |
+| A manual desktop checklist per platform | recurring, per release |
 
-**The structural cost.** The existing suite is mock-backed and deterministic,
+**The verification cost.** The existing suite is mock-backed and deterministic,
 and the native path already cannot be tested in CI — `native-testing.md` is a
 manual checklist run by a human on a real session. Two more platforms means two
-more such checklists, each needing a machine to run on. Untested native code
-that ships is worse than an honest null backend, so the verification cost, not
-the line count, is what decides this.
+more such checklists. Untested native code that ships is worse than an honest
+null backend, so this is the cost that governs, and it is recurring rather than
+one-time: every release pays it again, on every platform.
 
-**If it were ever worth doing**, the shape is narrow: power-saver state and
-system-sleep inhibition — the two that map cleanly — under a neutral name, with
-this addon as its Linux backend rather than its core. GameMode, OpenURI and
-Notification would stay out on the grounds above. That is a different library
-with a different scope, which is exactly why the entry below says so.
+Hosted CI covers less of it than it looks. GitHub's macOS and Windows runners
+can build the extension and smoke-test that a power assertion is created and
+released cleanly, which is worth having and is automatable. They cannot exercise
+the state transitions: neither runner has a battery, so Low Power Mode and
+Battery Saver never flip. Those stay manual, on real hardware, exactly as the
+Linux rows are today.
+
+**The narrow shape**, should this be taken up: power-saver state and
+system-sleep inhibition — the two that map cleanly — behind a neutral facade
+name, with the portal path as the Linux backend rather than the core. GameMode,
+OpenURI and Notification stay out on the grounds above, and no hardware changes
+that: two of them have nothing to call, and the third moves cost onto every
+consuming game.
+
+Two things would have to be settled before any such code, and neither is about
+platform APIs:
+
+- **The facade name.** `XDGPortal`, and a `Capability` enum mapping 1:1 to
+  `org.freedesktop.portal.*` interface names, cannot honestly front a Win32
+  backend. Pre-1.0 this is a permitted break, but it is a break, and it wants
+  deciding first rather than during.
+- **What `inhibit()` promises.** `get_supported_inhibit_flags()`, or some
+  equivalent, so a caller can find out that user-switch is unavailable on both
+  platforms and logout only on Windows. Note this cannot become a report of what
+  was actually *honoured*: the portal returns a request handle and never
+  enumerates the bits it acted on, so a compositor silently ignoring the logout
+  bit is unobservable on Linux too. Statically declaring what a backend can
+  request is answerable; reporting what the session did with it is not.
 
 Note also that `DisplayServer.screen_set_keep_on()` already handles display
 sleep on all three platforms in the engine itself, so the cross-platform slice
@@ -193,10 +217,12 @@ worth building is smaller than the table suggests.
   `org.freedesktop.ScreenSaver` or `org.freedesktop.login1` directly would work
   on the host and break in a sandbox, and would require exactly the broad
   `--talk-name` permissions this addon avoids.
-- **Windows or macOS equivalents.** "Inhibit sleep on any platform" is a
-  different, larger library. Here, non-Linux is the null backend and says so.
-  The reasoning, interface by interface, is in
-  [Windows and macOS variants](#windows-and-macos-variants) above.
+- **Windows or macOS equivalents of GameMode, OpenURI and Notification.** Two
+  have no API to call at all; the third would impose export-pipeline
+  requirements on every consuming game. Power-saver state and system-sleep
+  inhibition are a narrower question and are treated separately in
+  [Windows and macOS variants](#windows-and-macos-variants) above; everything
+  else non-Linux is the null backend and says so.
 - **Vendoring GLib.** It is linked dynamically from the host or Flatpak runtime;
   bundling it would break LGPL relinking expectations for no benefit.
 
