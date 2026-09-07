@@ -94,6 +94,108 @@ different ways in one repository.
 The mock backend stays usable from C# — `set_backend()` accepts any backend
 object — so this does not compromise testability.
 
+## Windows and macOS variants
+
+Non-Linux is the null backend today, and that is a contract rather than a stub:
+the addon imports, the autoload installs, and every call reports "unavailable"
+with the platform named. The question is whether a *native* Windows and macOS
+variant should exist behind the same facade. Mostly not — and it is worth being
+precise about which parts, because "just call the platform API instead" is only
+true for one of the five interfaces. Two are worth reconsidering; three are not,
+on grounds that no amount of effort changes.
+
+**Per interface.** Two have clean equivalents, one is already covered by the
+engine, one has no equivalent at all, and one changes what shipping a Godot game
+looks like.
+
+| Capability | macOS | Windows | Verdict |
+| --- | --- | --- | --- |
+| `GAME_MODE` | Game Mode (14+) is chosen by the OS for full-screen apps that set `GCSupportsGameMode`; no query, no request | Game Mode is chosen by the OS and toggled by the user in Settings; no public API | **No equivalent.** Permanently absent capability on both. |
+| `INHIBIT` | `IOPMAssertionCreateWithName` / `IOPMAssertionRelease` | `PowerCreateRequest` + `PowerSetRequest` / `PowerClearRequest` | Handle-based on both, so it maps cleanly — but see the flag problem below. |
+| `POWER_PROFILE_MONITOR` | `NSProcessInfo.isLowPowerModeEnabled` + `NSProcessInfoPowerStateDidChangeNotification` | `GetSystemPowerStatus().SystemStatusFlag` + `RegisterPowerSettingNotification(GUID_POWER_SAVING_STATUS)` | **The best fit of the five**, including a real change notification on both. |
+| `OPEN_URI` | `NSWorkspace.open(_:)` | `ShellExecuteExW` | Already what `OS.shell_open()` does. Only `is_scheme_supported()` (`NSWorkspace.urlForApplication(toOpen:)`, `AssocQueryStringW`) is new. |
+| `NOTIFICATION` | `UNUserNotificationCenter` | Toast notifications via an AUMID | Works, but imposes packaging requirements on the consuming game. See below. |
+
+**Three specific problems**, in ascending order of how much they cost:
+
+1. **`inhibit()` stops being all-or-nothing.** `InhibitFlags` is a mask of
+   logout, user-switch, suspend and idle. Both platforms cover idle and suspend
+   (`kIOPMAssertionTypePreventUserIdleDisplaySleep` /
+   `…PreventUserIdleSystemSleep`; `PowerRequestDisplayRequired` /
+   `PowerRequestSystemRequired`). Neither covers user-switch. Logout exists only
+   on Windows, through `ShutdownBlockReasonCreate`, which needs an `HWND` and is
+   a different mechanism with a different lifetime. So a call asking for all four
+   would silently honour two — and quietly dropping bits is the fabricated
+   success this addon refuses. It would need an answer at the API level, not a
+   footnote.
+
+2. **`open_uri()` loses its request model.** The portal answers asynchronously
+   and can report that the user cancelled. `NSWorkspace.open` and
+   `ShellExecuteExW` are fire-and-forget: there is no outcome to wait for. A
+   backend that emitted `request_completed` with `Response.SUCCESS` immediately
+   would be inventing an answer. Since `OS.shell_open()` already covers the
+   actual opening on every platform, the honest version of this is "not
+   available here", which is what happens now.
+
+3. **Notifications move the cost into the consuming project.** On macOS,
+   `UNUserNotificationCenter` requires a signed `.app` bundle with a bundle
+   identifier and a user authorization prompt — it does not work for a bare
+   executable or when running from the editor. On Windows, an unpackaged app
+   needs an AUMID backed by a Start Menu shortcut before a toast will display at
+   all, or MSIX identity if packaged; round-tripping `notification_action_invoked`
+   back into the running process needs a registered COM activator on top of that.
+   Both are export-pipeline requirements, so the addon would be telling games how
+   to ship. The Linux portal asks for none of this.
+
+**What it would entail.**
+
+| Work | Size |
+| --- | --- |
+| `IOKit`/`Foundation` Objective-C++ backend, `powrprof`/`shell32`/WinRT Win32 backend | the smallest part |
+| A neutral facade name and capability enum, since `Capability` maps 1:1 to `org.freedesktop.portal.*` interface names | breaking change for every consumer |
+| Three toolchains in CMake and CI, a universal `.dylib` (x86-64 + arm64), codesigning for macOS notifications | roughly triples build and release surface |
+| A manual desktop checklist per platform | recurring, per release |
+
+**The verification cost.** The existing suite is mock-backed and deterministic,
+and the native path already cannot be tested in CI — `native-testing.md` is a
+manual checklist run by a human on a real session. Two more platforms means two
+more such checklists. Untested native code that ships is worse than an honest
+null backend, so this is the cost that governs, and it is recurring rather than
+one-time: every release pays it again, on every platform.
+
+Hosted CI covers less of it than it looks. GitHub's macOS and Windows runners
+can build the extension and smoke-test that a power assertion is created and
+released cleanly, which is worth having and is automatable. They cannot exercise
+the state transitions: neither runner has a battery, so Low Power Mode and
+Battery Saver never flip. Those stay manual, on real hardware, exactly as the
+Linux rows are today.
+
+**The narrow shape**, should this be taken up: power-saver state and
+system-sleep inhibition — the two that map cleanly — behind a neutral facade
+name, with the portal path as the Linux backend rather than the core. GameMode,
+OpenURI and Notification stay out on the grounds above, and no hardware changes
+that: two of them have nothing to call, and the third moves cost onto every
+consuming game.
+
+Two things would have to be settled before any such code, and neither is about
+platform APIs:
+
+- **The facade name.** `XDGPortal`, and a `Capability` enum mapping 1:1 to
+  `org.freedesktop.portal.*` interface names, cannot honestly front a Win32
+  backend. Pre-1.0 this is a permitted break, but it is a break, and it wants
+  deciding first rather than during.
+- **What `inhibit()` promises.** `get_supported_inhibit_flags()`, or some
+  equivalent, so a caller can find out that user-switch is unavailable on both
+  platforms and logout only on Windows. Note this cannot become a report of what
+  was actually *honoured*: the portal returns a request handle and never
+  enumerates the bits it acted on, so a compositor silently ignoring the logout
+  bit is unobservable on Linux too. Statically declaring what a backend can
+  request is answerable; reporting what the session did with it is not.
+
+Note also that `DisplayServer.screen_set_keep_on()` already handles display
+sleep on all three platforms in the engine itself, so the cross-platform slice
+worth building is smaller than the table suggests.
+
 ## Under consideration
 
 - **`org.freedesktop.portal.Screenshot`** — a natural fit for a bug-report
@@ -115,8 +217,12 @@ object — so this does not compromise testability.
   `org.freedesktop.ScreenSaver` or `org.freedesktop.login1` directly would work
   on the host and break in a sandbox, and would require exactly the broad
   `--talk-name` permissions this addon avoids.
-- **Windows or macOS equivalents.** "Inhibit sleep on any platform" is a
-  different, larger library. Here, non-Linux is the null backend and says so.
+- **Windows or macOS equivalents of GameMode, OpenURI and Notification.** Two
+  have no API to call at all; the third would impose export-pipeline
+  requirements on every consuming game. Power-saver state and system-sleep
+  inhibition are a narrower question and are treated separately in
+  [Windows and macOS variants](#windows-and-macos-variants) above; everything
+  else non-Linux is the null backend and says so.
 - **Vendoring GLib.** It is linked dynamically from the host or Flatpak runtime;
   bundling it would break LGPL relinking expectations for no benefit.
 
