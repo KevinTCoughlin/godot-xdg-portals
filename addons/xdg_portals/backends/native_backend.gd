@@ -12,6 +12,11 @@ class_name XDGPortalNativeBackend
 ## [method create], which returns [code]null[/code] when the extension is not
 ## loaded rather than raising.
 
+## Source of the flag values, so the mask below cannot drift from the enum the
+## facade publishes. Preloaded rather than read off the autoload: backends are
+## constructed directly by the test suite, where no autoload exists.
+const _FACADE := preload("res://addons/xdg_portals/xdg_portal.gd")
+
 var _native: RefCounted = null
 
 
@@ -83,6 +88,16 @@ func inhibit(flags: int, reason: String, parent_window: String) -> String:
 	if _native == null:
 		return ""
 	return String(_native.call("inhibit", flags, reason, parent_window))
+
+
+## The portal accepts all four bits. Whether the desktop's backend acts on each
+## one varies (wlroots compositors commonly ignore logout and user-switch), and
+## the portal does not report which it honoured — see
+## [method XDGPortalBackend.get_supported_inhibit_flags].
+func get_supported_inhibit_flags() -> int:
+	if _native == null:
+		return 0
+	return _FACADE.INHIBIT_FLAGS_MASK
 
 
 func close_request(handle: String) -> bool:

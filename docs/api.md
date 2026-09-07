@@ -48,12 +48,30 @@ non-interactive and show no UI.
 
 ```gdscript
 func inhibit(flags: int, reason: String, parent_window: String = "") -> String
+func get_supported_inhibit_flags() -> int
 func close_request(handle: String) -> bool
 ```
 
 `flags` is a mask of `InhibitFlags`. A mask of `0`, a negative value, or any bit
 outside `INHIBIT_FLAGS_MASK` is rejected locally: the call returns `""`, emits
 `portal_error`, and nothing reaches the bus.
+
+`get_supported_inhibit_flags()` returns the mask the current backend can *ask*
+for, or `0` when inhibition is unavailable. Against a portal that is every
+documented bit; it is lower only on a backend that cannot express one.
+
+```gdscript
+var wanted := XDGPortal.InhibitFlags.IDLE | XDGPortal.InhibitFlags.SUSPEND
+if wanted & XDGPortal.get_supported_inhibit_flags() == wanted:
+    handle = XDGPortal.inhibit(wanted, "Cutscene")
+```
+
+It does not gate `inhibit()`, and it is not a report of what the session did.
+The portal answers `Inhibit` with a request handle and never enumerates the bits
+it acted on, so a desktop that ignores one it advertises is indistinguishable
+from one that honours it — wlroots compositors commonly ignore logout and
+user-switch (see [`compatibility.md`](compatibility.md#desktop-support)). Treat
+the result as "what can be requested here", never as "what will happen".
 
 `inhibit()` returns immediately with a request handle — the portal's eventual
 answer arrives on `request_completed`. The inhibition stays in effect until the

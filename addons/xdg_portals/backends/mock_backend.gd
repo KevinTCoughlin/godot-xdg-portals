@@ -18,6 +18,10 @@ class_name XDGPortalMockBackend
 ## XDGPortal.set_backend(mock)
 ## [/codeblock]
 
+## Source of the default flag mask; see [XDGPortalNativeBackend] for why this is
+## preloaded rather than read off the autoload.
+const _FACADE := preload("res://addons/xdg_portals/xdg_portal.gd")
+
 ## Ordered log of every backend call: [code]{"method": String, "args": Array}[/code].
 var calls: Array[Dictionary] = []
 
@@ -44,6 +48,9 @@ var next_handle_prefix: String = "/org/freedesktop/portal/desktop/request/mock/t
 var next_request_succeeds: bool = true
 ## Value returned by [method close_request].
 var next_close_succeeds: bool = true
+## Mask returned by [method get_supported_inhibit_flags]. Defaults to every
+## documented bit; set it lower to exercise a backend that can request less.
+var next_supported_inhibit_flags: int = _FACADE.INHIBIT_FLAGS_MASK
 ## -1 unknown, 0 disabled, 1 enabled.
 var next_power_saver_state: int = 0
 ## -1 unknown, 0 unsupported, 1 supported.
@@ -89,6 +96,10 @@ func inhibit(flags: int, reason: String, parent_window: String) -> String:
 func close_request(handle: String) -> bool:
 	_record("close_request", [handle])
 	return next_close_succeeds
+
+
+func get_supported_inhibit_flags() -> int:
+	return next_supported_inhibit_flags
 
 
 func power_saver_state() -> int:

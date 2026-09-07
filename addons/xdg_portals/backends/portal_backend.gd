@@ -51,6 +51,16 @@ func game_mode_unregister(_pid: int) -> int:
 func inhibit(_flags: int, _reason: String, _parent_window: String) -> String:
 	return ""
 
+## Mask of the [code]XDGPortal.InhibitFlags[/code] bits this backend can ask for.
+##
+## This declares what is *requestable*, not what a session actually did with the
+## request: the portal answers [code]Inhibit[/code] with a request handle and
+## never enumerates the bits it acted on, so a compositor that ignores one is
+## indistinguishable from one that honours it. A backend that cannot inhibit at
+## all reports [code]0[/code].
+func get_supported_inhibit_flags() -> int:
+	return 0
+
 ## Closes a pending request handle.
 func close_request(_handle: String) -> bool:
 	return false
