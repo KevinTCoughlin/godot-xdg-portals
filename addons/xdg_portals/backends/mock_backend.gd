@@ -1,8 +1,8 @@
 # SPDX-FileCopyrightText: 2026 Kevin Coughlin
 #
 # SPDX-License-Identifier: MIT
-extends XDGPortalBackend
-class_name XDGPortalMockBackend
+extends DesktopServicesBackend
+class_name DesktopServicesMockBackend
 
 ## Fully scripted backend used by the test suite and by games that want to
 ## exercise portal code paths without a desktop session.
@@ -13,14 +13,14 @@ class_name XDGPortalMockBackend
 ## [method complete_request] explicitly.
 ##
 ## [codeblock]
-## var mock := XDGPortalMockBackend.new()
-## mock.next_game_mode_status = XDGPortal.GameModeStatus.REGISTERED
-## XDGPortal.set_backend(mock)
+## var mock := DesktopServicesMockBackend.new()
+## mock.next_game_mode_status = DesktopServices.GameModeStatus.REGISTERED
+## DesktopServices.set_backend(mock)
 ## [/codeblock]
 
-## Source of the default flag mask; see [XDGPortalNativeBackend] for why this is
+## Source of the default flag mask; see [DesktopServicesNativeBackend] for why this is
 ## preloaded rather than read off the autoload.
-const _FACADE := preload("res://addons/xdg_portals/xdg_portal.gd")
+const _FACADE := preload("res://addons/xdg_portals/desktop_services.gd")
 
 ## Ordered log of every backend call: [code]{"method": String, "args": Array}[/code].
 var calls: Array[Dictionary] = []
@@ -128,23 +128,23 @@ func remove_notification(id: String) -> bool:
 
 # --- Test drivers -------------------------------------------------------------
 
-## Emits [signal XDGPortalBackend.request_completed] as the portal would.
+## Emits [signal DesktopServicesBackend.request_completed] as the portal would.
 func complete_request(handle: String, response: int, results: Dictionary = {}) -> void:
 	request_completed.emit(handle, response, results)
 
 
-## Emits [signal XDGPortalBackend.power_saver_changed] and updates the cached state.
+## Emits [signal DesktopServicesBackend.power_saver_changed] and updates the cached state.
 func emit_power_saver(enabled: bool) -> void:
 	next_power_saver_state = 1 if enabled else 0
 	power_saver_changed.emit(enabled)
 
 
-## Emits [signal XDGPortalBackend.notification_action_invoked].
+## Emits [signal DesktopServicesBackend.notification_action_invoked].
 func emit_action(id: String, action: String, parameters: Array = []) -> void:
 	notification_action_invoked.emit(id, action, parameters)
 
 
-## Emits [signal XDGPortalBackend.portal_error].
+## Emits [signal DesktopServicesBackend.portal_error].
 func emit_error(context: String, message: String) -> void:
 	portal_error.emit(context, message)
 

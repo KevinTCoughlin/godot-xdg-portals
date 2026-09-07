@@ -4,11 +4,11 @@ The addon is three layers. Game code only ever sees the first.
 
 ```
 ┌──────────────────────────────────────────────────────────────┐
-│ 1. Facade — addons/xdg_portals/xdg_portal.gd                 │
-│    Autoload `XDGPortal`. Typed API, enums, argument          │
+│ 1. Facade — addons/xdg_portals/desktop_services.gd                 │
+│    Autoload `DesktopServices`. Typed API, enums, argument          │
 │    validation, capability gating, signal re-emission.        │
 └───────────────────────────┬──────────────────────────────────┘
-                            │ XDGPortalBackend contract
+                            │ DesktopServicesBackend contract
         ┌───────────────────┼───────────────────┐
         ▼                   ▼                   ▼
 ┌───────────────┐   ┌───────────────┐   ┌───────────────┐
@@ -27,7 +27,7 @@ The addon is three layers. Game code only ever sees the first.
 
 ## Layer 1 — the GDScript facade
 
-`XDGPortal` is the stable surface. It is deliberately small and does four things
+`DesktopServices` is the stable surface. It is deliberately small and does four things
 no backend should have to repeat:
 
 - **Validation.** Inhibit flag masks, URI schemes, notification ids and
@@ -42,20 +42,20 @@ no backend should have to repeat:
   code connects in one place and keeps working across a backend swap.
 
 It picks its backend on first use rather than only in `_ready()`, so an autoload
-that reaches `XDGPortal` from its own `_ready()` still gets a working facade.
+that reaches `DesktopServices` from its own `_ready()` still gets a working facade.
 
 ## Layer 2 — backends
 
-`XDGPortalBackend` is the contract: plain methods, four signals, and an honest
+`DesktopServicesBackend` is the contract: plain methods, four signals, and an honest
 default for every one of them (`-1`, `false`, `""`). Three implementations ship:
 
 | Backend | When | Behaviour |
 | --- | --- | --- |
-| `XDGPortalNativeBackend` | Linux, extension loaded, session bus reachable | Forwards to `XdgPortalNative`. |
-| `XDGPortalNullBackend` | Everything else | Every call is a no-op reporting "unavailable". |
-| `XDGPortalMockBackend` | Injected by tests | Records calls, answers from `next_*` fields, emits signals on demand. |
+| `DesktopServicesNativeBackend` | Linux, extension loaded, session bus reachable | Forwards to `XdgPortalNative`. |
+| `DesktopServicesNullBackend` | Everything else | Every call is a no-op reporting "unavailable". |
+| `DesktopServicesMockBackend` | Injected by tests | Records calls, answers from `next_*` fields, emits signals on demand. |
 
-Selection happens in `XDGPortal._create_default_backend()`:
+Selection happens in `DesktopServices._create_default_backend()`:
 
 1. Not Linux, or a web build → null backend, with the platform named in the
    reason.

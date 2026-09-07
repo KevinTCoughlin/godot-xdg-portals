@@ -15,11 +15,11 @@ var _inhibit_handle: String = ""
 
 
 func _ready() -> void:
-	XDGPortal.capabilities_changed.connect(_refresh_status)
-	XDGPortal.power_saver_changed.connect(_on_power_saver_changed)
-	XDGPortal.request_completed.connect(_on_request_completed)
-	XDGPortal.notification_action_invoked.connect(_on_action_invoked)
-	XDGPortal.portal_error.connect(_on_portal_error)
+	DesktopServices.capabilities_changed.connect(_refresh_status)
+	DesktopServices.power_saver_changed.connect(_on_power_saver_changed)
+	DesktopServices.request_completed.connect(_on_request_completed)
+	DesktopServices.notification_action_invoked.connect(_on_action_invoked)
+	DesktopServices.portal_error.connect(_on_portal_error)
 
 	%QueryGameModeButton.pressed.connect(_on_query_game_mode)
 	%RequestGameModeButton.pressed.connect(_on_request_game_mode)
@@ -36,41 +36,41 @@ func _ready() -> void:
 
 
 func _refresh_status() -> void:
-	if not XDGPortal.is_available():
+	if not DesktopServices.is_available():
 		_status.text = "Portals unavailable (%s backend): %s" % [
-			XDGPortal.get_backend_name(), XDGPortal.get_unavailable_reason()
+			DesktopServices.get_backend_name(), DesktopServices.get_unavailable_reason()
 		]
 		return
 
 	var present: PackedStringArray = []
-	for capability: int in XDGPortal.INTERFACE_NAMES:
-		if XDGPortal.has_capability(capability):
-			var interface_name: String = XDGPortal.INTERFACE_NAMES[capability]
+	for capability: int in DesktopServices.INTERFACE_NAMES:
+		if DesktopServices.has_capability(capability):
+			var interface_name: String = DesktopServices.INTERFACE_NAMES[capability]
 			present.append("%s v%d" % [
-				interface_name.get_slice(".", 3), XDGPortal.get_interface_version(capability)
+				interface_name.get_slice(".", 3), DesktopServices.get_interface_version(capability)
 			])
 	_status.text = "Backend: %s — %s" % [
-		XDGPortal.get_backend_name(),
+		DesktopServices.get_backend_name(),
 		", ".join(present) if present.size() > 0 else "no portal interfaces exported"
 	]
 
 
 func _on_query_game_mode() -> void:
-	var status: int = XDGPortal.query_game_mode()
+	var status: int = DesktopServices.query_game_mode()
 	_write("GameMode status: %s" % _game_mode_name(status))
 
 
 func _on_request_game_mode() -> void:
-	_write("RegisterGame: %s" % ("ok" if XDGPortal.request_game_mode() else "failed"))
+	_write("RegisterGame: %s" % ("ok" if DesktopServices.request_game_mode() else "failed"))
 
 
 func _on_release_game_mode() -> void:
-	_write("UnregisterGame: %s" % ("ok" if XDGPortal.release_game_mode() else "failed"))
+	_write("UnregisterGame: %s" % ("ok" if DesktopServices.release_game_mode() else "failed"))
 
 
 func _on_inhibit() -> void:
-	var flags: int = XDGPortal.InhibitFlags.IDLE | XDGPortal.InhibitFlags.SUSPEND
-	_inhibit_handle = XDGPortal.inhibit(flags, "Demo cutscene")
+	var flags: int = DesktopServices.InhibitFlags.IDLE | DesktopServices.InhibitFlags.SUSPEND
+	_inhibit_handle = DesktopServices.inhibit(flags, "Demo cutscene")
 	_write("Inhibit handle: %s" % (_inhibit_handle if not _inhibit_handle.is_empty() else "<none>"))
 
 
@@ -79,38 +79,38 @@ func _on_close_inhibit() -> void:
 		_write("No inhibition to close.")
 		return
 	_write("Close(%s): %s" % [
-		_inhibit_handle, "ok" if XDGPortal.close_request(_inhibit_handle) else "failed"
+		_inhibit_handle, "ok" if DesktopServices.close_request(_inhibit_handle) else "failed"
 	])
 	_inhibit_handle = ""
 
 
 func _on_power_saver() -> void:
-	var enabled: Variant = XDGPortal.is_power_saver_enabled()
+	var enabled: Variant = DesktopServices.is_power_saver_enabled()
 	_write("power-saver-enabled: %s" % ("unknown" if enabled == null else str(enabled)))
 
 
 func _on_open_uri() -> void:
 	var uri: String = %UriEdit.text
-	var handle: String = XDGPortal.open_uri(uri, %AskCheck.button_pressed)
+	var handle: String = DesktopServices.open_uri(uri, %AskCheck.button_pressed)
 	_write("OpenURI(%s) handle: %s" % [uri, handle if not handle.is_empty() else "<rejected>"])
 
 
 func _on_scheme_supported() -> void:
 	var scheme: String = %SchemeEdit.text
-	var supported: Variant = XDGPortal.is_scheme_supported(scheme)
+	var supported: Variant = DesktopServices.is_scheme_supported(scheme)
 	_write("SchemeSupported(%s): %s" % [scheme, "unknown" if supported == null else str(supported)])
 
 
 func _on_notify() -> void:
-	var ok: bool = XDGPortal.add_notification(
+	var ok: bool = DesktopServices.add_notification(
 		"demo", "Godot XDG Portals", "Posted from the demo project.",
-		XDGPortal.NotificationPriority.NORMAL
+		DesktopServices.NotificationPriority.NORMAL
 	)
 	_write("AddNotification: %s" % ("ok" if ok else "failed"))
 
 
 func _on_remove_notify() -> void:
-	_write("RemoveNotification: %s" % ("ok" if XDGPortal.remove_notification("demo") else "failed"))
+	_write("RemoveNotification: %s" % ("ok" if DesktopServices.remove_notification("demo") else "failed"))
 
 
 func _on_power_saver_changed(enabled: bool) -> void:
@@ -137,11 +137,11 @@ func _write(line: String) -> void:
 
 func _game_mode_name(status: int) -> String:
 	match status:
-		XDGPortal.GameModeStatus.NOT_REGISTERED:
+		DesktopServices.GameModeStatus.NOT_REGISTERED:
 			return "not registered"
-		XDGPortal.GameModeStatus.REGISTERED:
+		DesktopServices.GameModeStatus.REGISTERED:
 			return "registered"
-		XDGPortal.GameModeStatus.REJECTED:
+		DesktopServices.GameModeStatus.REJECTED:
 			return "rejected"
 		_:
 			return "unknown"
@@ -149,9 +149,9 @@ func _game_mode_name(status: int) -> String:
 
 func _response_name(response: int) -> String:
 	match response:
-		XDGPortal.Response.SUCCESS:
+		DesktopServices.Response.SUCCESS:
 			return "success"
-		XDGPortal.Response.CANCELLED:
+		DesktopServices.Response.CANCELLED:
 			return "cancelled"
 		_:
 			return "other"

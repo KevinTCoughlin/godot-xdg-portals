@@ -17,7 +17,7 @@ const TIMEOUT_SECONDS := 15.0
 
 var _failures: PackedStringArray = []
 var _portal: Node = null
-var _backend: XDGPortalBackend = null
+var _backend: DesktopServicesBackend = null
 
 
 func _initialize() -> void:
@@ -29,13 +29,13 @@ func _initialize() -> void:
 		_finish()
 		return
 
-	_backend = XDGPortalNativeBackend.create()
+	_backend = DesktopServicesNativeBackend.create()
 	if _backend == null or not _backend.is_available():
 		_fail("the native backend could not reach the session bus")
 		_finish()
 		return
 
-	_portal = load("res://addons/xdg_portals/xdg_portal.gd").new()
+	_portal = load("res://addons/xdg_portals/desktop_services.gd").new()
 	_portal.set_backend(_backend)
 
 	_check_discovery()

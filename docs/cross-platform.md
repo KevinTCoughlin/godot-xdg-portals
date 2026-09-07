@@ -23,11 +23,11 @@ nothing to strip before shipping.
 ```gdscript
 # Wrong: three other cases fail exactly the same way.
 if OS.get_name() == "Linux":
-    XDGPortal.inhibit(flags, "Cutscene")
+    DesktopServices.inhibit(flags, "Cutscene")
 
 # Right.
-if XDGPortal.has_capability(XDGPortal.Capability.INHIBIT):
-    XDGPortal.inhibit(flags, "Cutscene")
+if DesktopServices.has_capability(DesktopServices.Capability.INHIBIT):
+    DesktopServices.inhibit(flags, "Cutscene")
 ```
 
 A Windows build is not the only place inhibition is missing. So is a headless
@@ -62,11 +62,11 @@ func keep_awake(enabled: bool) -> void:
     DisplayServer.screen_set_keep_on(enabled)  # display sleep, every platform
     if enabled:
         # Adds system suspend on Linux; no-ops into the null backend elsewhere.
-        var wanted := XDGPortal.InhibitFlags.IDLE | XDGPortal.InhibitFlags.SUSPEND
-        if wanted & XDGPortal.get_supported_inhibit_flags() == wanted:
-            _inhibit_handle = XDGPortal.inhibit(wanted, "Cutscene")
+        var wanted := DesktopServices.InhibitFlags.IDLE | DesktopServices.InhibitFlags.SUSPEND
+        if wanted & DesktopServices.get_supported_inhibit_flags() == wanted:
+            _inhibit_handle = DesktopServices.inhibit(wanted, "Cutscene")
     elif not _inhibit_handle.is_empty():
-        XDGPortal.close_request(_inhibit_handle)
+        DesktopServices.close_request(_inhibit_handle)
         _inhibit_handle = ""
 
 
@@ -75,7 +75,7 @@ func open_url(url: String) -> void:
 
 
 func is_power_saving() -> bool:
-    var state: Variant = XDGPortal.is_power_saver_enabled()
+    var state: Variant = DesktopServices.is_power_saver_enabled()
     if state == null:
         return Settings.battery_mode  # unknown: the player's setting decides
     return state
@@ -92,7 +92,7 @@ port most often goes wrong:
 
 ```gdscript
 # Wrong: on Windows this silently means "not saving power", which is a guess.
-if XDGPortal.is_power_saver_enabled():
+if DesktopServices.is_power_saver_enabled():
     reduce_quality()
 ```
 

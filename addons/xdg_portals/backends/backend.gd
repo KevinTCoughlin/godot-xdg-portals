@@ -2,14 +2,14 @@
 #
 # SPDX-License-Identifier: MIT
 extends RefCounted
-class_name XDGPortalBackend
+class_name DesktopServicesBackend
 
-## Backend contract used by the [code]XDGPortal[/code] facade.
+## Backend contract used by the [code]DesktopServices[/code] facade.
 ##
 ## Every method has an honest default: unknown state is reported as [code]-1[/code],
 ## [code]false[/code] or an empty handle, never as a fabricated success. Concrete
-## backends are [XDGPortalNullBackend], [XDGPortalMockBackend] and
-## [XDGPortalNativeBackend].
+## backends are [DesktopServicesNullBackend], [DesktopServicesMockBackend] and
+## [DesktopServicesNativeBackend].
 
 ## Emitted when the compositor reports a change to the power-saver state.
 signal power_saver_changed(enabled: bool)
@@ -35,7 +35,7 @@ func is_available() -> bool:
 func get_interface_versions() -> Dictionary:
 	return {}
 
-## Returns an [code]XDGPortal.GameModeStatus[/code] value.
+## Returns an [code]DesktopServices.GameModeStatus[/code] value.
 func game_mode_query_status(_pid: int) -> int:
 	return -1
 
@@ -51,7 +51,7 @@ func game_mode_unregister(_pid: int) -> int:
 func inhibit(_flags: int, _reason: String, _parent_window: String) -> String:
 	return ""
 
-## Mask of the [code]XDGPortal.InhibitFlags[/code] bits this backend can ask for.
+## Mask of the [code]DesktopServices.InhibitFlags[/code] bits this backend can ask for.
 ##
 ## This declares what is *requestable*, not what a session actually did with the
 ## request: the portal answers [code]Inhibit[/code] with a request handle and

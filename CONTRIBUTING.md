@@ -62,7 +62,7 @@ note, and a false one is worse than none.
   `false` or an empty handle. Never report an unavailable operation as
   successful, and never substitute a plausible guess for an unknown value.
 - **Keep the API small, typed and mockable.** Every new facade method needs
-  a `XDGPortalBackend` method, a mock implementation, and tests. Anything
+  a `DesktopServicesBackend` method, a mock implementation, and tests. Anything
   reachable from game code must be exercisable without a bus.
 - **No new capability without a version gate.** Optional portal members are
   adopted behind an interface-version check, as `SchemeSupported` is gated on

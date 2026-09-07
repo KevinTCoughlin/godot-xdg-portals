@@ -2,25 +2,25 @@
 #
 # SPDX-License-Identifier: MIT
 extends RefCounted
-class_name XDGPortalTestCase
+class_name DesktopServicesTestCase
 
 ## Minimal assertion base class for the mock-backed suite.
 ##
 ## The suite deliberately avoids third-party test frameworks and anything
 ## time-dependent: every test builds a facade, injects an
-## [XDGPortalMockBackend], and asserts on recorded calls and emitted signals.
+## [DesktopServicesMockBackend], and asserts on recorded calls and emitted signals.
 
-const FACADE_SCRIPT := preload("res://addons/xdg_portals/xdg_portal.gd")
+const FACADE_SCRIPT := preload("res://addons/xdg_portals/desktop_services.gd")
 
 var failures: PackedStringArray = []
 
 var portal: Node = null
-var mock: XDGPortalMockBackend = null
+var mock: DesktopServicesMockBackend = null
 
 
 ## Runs before every test method.
 func before_each() -> void:
-	mock = XDGPortalMockBackend.new()
+	mock = DesktopServicesMockBackend.new()
 	portal = FACADE_SCRIPT.new()
 	portal.set_backend(mock)
 

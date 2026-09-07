@@ -1,11 +1,11 @@
 # SPDX-FileCopyrightText: 2026 Kevin Coughlin
 #
 # SPDX-License-Identifier: MIT
-extends XDGPortalTestCase
+extends DesktopServicesTestCase
 
 ## Capability and interface-version discovery, plus error forwarding.
 
-const Facade := XDGPortalTestCase.FACADE_SCRIPT
+const Facade := DesktopServicesTestCase.FACADE_SCRIPT
 
 
 func test_all_capabilities_are_present_with_the_default_mock() -> void:

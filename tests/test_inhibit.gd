@@ -1,11 +1,11 @@
 # SPDX-FileCopyrightText: 2026 Kevin Coughlin
 #
 # SPDX-License-Identifier: MIT
-extends XDGPortalTestCase
+extends DesktopServicesTestCase
 
 ## org.freedesktop.portal.Inhibit and org.freedesktop.portal.Request coverage.
 
-const Facade := XDGPortalTestCase.FACADE_SCRIPT
+const Facade := DesktopServicesTestCase.FACADE_SCRIPT
 
 
 func test_inhibit_returns_a_handle_and_forwards_arguments() -> void:
