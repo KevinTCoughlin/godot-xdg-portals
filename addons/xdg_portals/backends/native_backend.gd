@@ -18,6 +18,7 @@ class_name DesktopServicesNativeBackend
 const _FACADE := preload("res://addons/xdg_portals/desktop_services.gd")
 
 var _native: RefCounted = null
+var _versions: Dictionary = {}
 
 
 ## Returns a ready backend, or [code]null[/code] when the native class is missing
@@ -60,10 +61,26 @@ func get_unavailable_reason() -> String:
 	return String(_native.call("get_unavailable_reason"))
 
 
-func get_interface_versions() -> Dictionary:
-	if _native == null:
-		return {}
-	return _native.call("get_interface_versions")
+## Reads the portal's exported interface versions and reports a capability as
+## available where its interface has one. The extension answers keyed by
+## interface name — the only backend for which that vocabulary is literally
+## true — so the translation to [code]Capability[/code] lives here rather than
+## leaking into the facade.
+func get_capabilities() -> Dictionary:
+	_versions = {} if _native == null else _native.call("get_interface_versions")
+	var capabilities: Dictionary = {}
+	for capability: int in _FACADE.INTERFACE_NAMES:
+		capabilities[capability] = get_interface_version(capability) >= 0
+	return capabilities
+
+
+## The portal interface version, from the versions read by the last
+## [method get_capabilities].
+func get_interface_version(capability: int) -> int:
+	var interface_name: String = _FACADE.INTERFACE_NAMES.get(capability, "")
+	if interface_name.is_empty():
+		return -1
+	return int(_versions.get(interface_name, -1))
 
 
 func game_mode_query_status(pid: int) -> int:

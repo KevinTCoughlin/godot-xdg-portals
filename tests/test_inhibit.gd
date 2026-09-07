@@ -40,7 +40,7 @@ func test_supported_flags_reports_a_partial_backend() -> void:
 
 
 func test_supported_flags_is_zero_without_the_capability() -> void:
-	mock.interface_versions["org.freedesktop.portal.Inhibit"] = -1
+	mock.capabilities[Facade.Capability.INHIBIT] = false
 	portal.refresh_capabilities()
 	assert_eq(portal.get_supported_inhibit_flags(), 0, "nothing is requestable")
 
@@ -73,7 +73,7 @@ func test_inhibit_returns_empty_handle_when_the_call_cannot_start() -> void:
 
 
 func test_missing_capability_skips_the_backend() -> void:
-	mock.interface_versions["org.freedesktop.portal.Inhibit"] = -1
+	mock.capabilities[Facade.Capability.INHIBIT] = false
 	portal.refresh_capabilities()
 	assert_eq(portal.inhibit(Facade.InhibitFlags.IDLE, "Cutscene"), "")
 	assert_eq(mock.calls.size(), 0)

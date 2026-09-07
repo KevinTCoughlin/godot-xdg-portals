@@ -17,14 +17,23 @@ empty handle.
 | `get_backend_name()` | `String` | `"native"`, `"macos"`, `"null"` or `"mock"`. |
 | `get_backend()` | `DesktopServicesBackend` | The active backend. |
 | `set_backend(backend)` | `void` | Injects a backend; see [Testing](#testing). |
-| `refresh_capabilities()` | `void` | Re-reads interface versions, emits `capabilities_changed`. |
+| `refresh_capabilities()` | `void` | Re-reads capabilities from the backend, emits `capabilities_changed`. |
 | `get_capabilities()` | `Dictionary` | `Capability` → `bool`. |
-| `has_capability(capability)` | `bool` | Whether that interface is exported. |
-| `get_interface_version(capability)` | `int` | Exported version, or `-1` when unknown. |
+| `has_capability(capability)` | `bool` | Whether that capability is usable. |
+| `get_interface_version(capability)` | `int` | Portal interface version, or `-1` when there is none. |
 
-Capability discovery reads the `version` property of each portal interface once,
-at backend selection. Call `refresh_capabilities()` if the portal service is
-restarted mid-session.
+`has_capability()` is the question to ask. It comes from the backend, so it is
+answerable whatever the backend is built on — the macOS backend serves
+`POWER_PROFILE_MONITOR` and nothing else, without any portal interface existing.
+
+`get_interface_version()` is a **portal-specific extra**, not the mechanism. Any
+backend that is not a portal answers `-1` for everything while still serving its
+capabilities, so `get_interface_version(c) >= 0` is *not* an availability check.
+Use it for diagnostics, and for gating on a portal member that needs a minimum
+version — `SchemeSupported` is the only such case here.
+
+Capability discovery runs once at backend selection. Call
+`refresh_capabilities()` if the portal service is restarted mid-session.
 
 ## GameMode
 
@@ -162,7 +171,8 @@ enum Capability { GAME_MODE, INHIBIT, POWER_PROFILE_MONITOR, OPEN_URI, NOTIFICAT
 ```
 
 Constants: `INHIBIT_FLAGS_MASK` (`15`), `INTERFACE_NAMES` (`Capability` → portal
-interface name), `SCHEME_SUPPORTED_MIN_VERSION` (`5`).
+interface name — descriptive only; see above), `SCHEME_SUPPORTED_MIN_VERSION`
+(`5`).
 
 `Response` values match the portal's own response codes, so `SUCCESS` is `0` and
 anything non-zero means the request did not do what was asked.

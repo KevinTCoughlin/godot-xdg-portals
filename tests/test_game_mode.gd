@@ -59,7 +59,7 @@ func test_release_fails_on_negative_result() -> void:
 
 
 func test_missing_capability_short_circuits_every_call() -> void:
-	mock.interface_versions["org.freedesktop.portal.GameMode"] = -1
+	mock.capabilities[Facade.Capability.GAME_MODE] = false
 	portal.refresh_capabilities()
 	assert_eq(portal.query_game_mode(), Facade.GameModeStatus.UNKNOWN)
 	assert_false(portal.request_game_mode())

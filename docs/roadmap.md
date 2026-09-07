@@ -196,30 +196,6 @@ Note also that `DisplayServer.screen_set_keep_on()` already handles display
 sleep on all three platforms in the engine itself, so the cross-platform slice
 worth building is smaller than the table suggests.
 
-## Capability vocabulary
-
-The backend contract reports availability through `get_interface_versions()`,
-keyed by `org.freedesktop.portal.*` interface names, and the facade derives
-`has_capability()` from it. That was exact while every backend was a portal. It
-is not any more: the macOS backend has to answer in a vocabulary describing
-D-Bus interfaces it does not have, and says so in a comment rather than
-pretending.
-
-Renaming the facade to `DesktopServices` fixed the name a game sees. It did not
-fix this. The change that does is to split the two questions the dictionary
-currently conflates:
-
-- `get_capabilities()` on the backend — which capabilities are usable, keyed by
-  `Capability`. Every backend can answer this honestly.
-- `get_interface_version(capability)` — the portal interface version, and a
-  portal-specific extra rather than the mechanism. `-1` on any backend that is
-  not a portal, which is already what it means when an interface is absent.
-
-The facade's public surface barely moves: `has_capability()` reads the first,
-`get_interface_version()` the second, both already exist. The work is in the
-four backends and their tests. Worth doing before a second non-portal backend
-makes the same compromise twice.
-
 ## Under consideration
 
 - **`org.freedesktop.portal.Screenshot`** — a natural fit for a bug-report

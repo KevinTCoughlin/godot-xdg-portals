@@ -42,16 +42,19 @@ func _refresh_status() -> void:
 		]
 		return
 
+	# Capability names, not interface names: a backend that is not a portal
+	# serves capabilities without any org.freedesktop.portal.* interface
+	# existing, and the version is appended only where there is one to show.
 	var present: PackedStringArray = []
-	for capability: int in DesktopServices.INTERFACE_NAMES:
-		if DesktopServices.has_capability(capability):
-			var interface_name: String = DesktopServices.INTERFACE_NAMES[capability]
-			present.append("%s v%d" % [
-				interface_name.get_slice(".", 3), DesktopServices.get_interface_version(capability)
-			])
+	for capability: int in DesktopServices.Capability.values():
+		if not DesktopServices.has_capability(capability):
+			continue
+		var label: String = DesktopServices.Capability.keys()[capability]
+		var version: int = DesktopServices.get_interface_version(capability)
+		present.append(label if version < 0 else "%s v%d" % [label, version])
 	_status.text = "Backend: %s — %s" % [
 		DesktopServices.get_backend_name(),
-		", ".join(present) if present.size() > 0 else "no portal interfaces exported"
+		", ".join(present) if present.size() > 0 else "no capabilities available"
 	]
 
 

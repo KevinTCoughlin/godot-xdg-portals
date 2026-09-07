@@ -53,9 +53,11 @@ func _check_discovery() -> void:
 		"OpenURI version should be read from the service")
 	_expect(_portal.get_interface_version(_portal.Capability.INHIBIT) == 3,
 		"Inhibit version should be read from the service")
-	for capability: int in _portal.INTERFACE_NAMES:
+	for capability: int in _portal.Capability.values():
 		_expect(_portal.has_capability(capability),
-			"capability %d should be discovered" % capability)
+			"capability %s should be discovered" % _portal.Capability.keys()[capability])
+		_expect(_portal.get_interface_version(capability) >= 0,
+			"and the native backend should report a portal version for it")
 	# Exercised here rather than in the mock suite: this is the one path that
 	# reads the mask through the real native backend.
 	_expect(_portal.get_supported_inhibit_flags() == _portal.INHIBIT_FLAGS_MASK,

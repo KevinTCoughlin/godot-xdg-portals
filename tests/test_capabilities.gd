@@ -21,7 +21,7 @@ func test_interface_versions_are_reported() -> void:
 
 
 func test_absent_interface_reports_version_minus_one() -> void:
-	mock.interface_versions["org.freedesktop.portal.GameMode"] = -1
+	mock.capabilities[Facade.Capability.GAME_MODE] = false
 	portal.refresh_capabilities()
 	assert_eq(portal.get_interface_version(Facade.Capability.GAME_MODE), -1)
 	assert_false(portal.has_capability(Facade.Capability.GAME_MODE))
@@ -32,9 +32,11 @@ func test_unavailable_backend_reports_no_capabilities() -> void:
 	mock.available = false
 	portal.refresh_capabilities()
 	assert_false(portal.is_available())
-	for capability: int in Facade.INTERFACE_NAMES:
+	for capability: int in Facade.Capability.values():
+		assert_false(portal.has_capability(capability),
+			"an unreachable backend serves nothing, whatever it last reported")
 		assert_eq(portal.get_interface_version(capability), -1,
-			"an unreachable portal exports nothing, whatever it last reported")
+			"and has no interface version to report either")
 
 
 func test_refresh_capabilities_emits_the_signal() -> void:
@@ -45,10 +47,10 @@ func test_refresh_capabilities_emits_the_signal() -> void:
 
 
 func test_capabilities_track_backend_changes() -> void:
-	mock.interface_versions["org.freedesktop.portal.Notification"] = -1
+	mock.capabilities[Facade.Capability.NOTIFICATION] = false
 	portal.refresh_capabilities()
 	assert_false(portal.has_capability(Facade.Capability.NOTIFICATION))
-	mock.interface_versions["org.freedesktop.portal.Notification"] = 2
+	mock.capabilities[Facade.Capability.NOTIFICATION] = true
 	portal.refresh_capabilities()
 	assert_true(portal.has_capability(Facade.Capability.NOTIFICATION))
 

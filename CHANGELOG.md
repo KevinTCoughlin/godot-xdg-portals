@@ -27,7 +27,32 @@ Before 1.0 the public API may change in a minor release.
   `0`. It declares what is requestable, not what a session honoured — the portal
   never reports which bits it acted on — and it does not gate `inhibit()`.
 
+### Fixed
+
+- The test runner now fails a suite that contributes no test methods. Godot's
+  `load()` returns a script that failed to compile rather than `null`, so a
+  syntax error in a suite previously read as a green run with that suite
+  silently absent — which is how a broken `test_power_profile.gd` passed
+  locally during this change.
+
 ### Changed
+
+- **Breaking (backend authors only): the backend contract reports capabilities
+  directly.** `get_interface_versions() -> Dictionary` (keyed by
+  `org.freedesktop.portal.*` names) is replaced by two methods:
+  `get_capabilities()`, keyed by `Capability`, which decides availability and
+  which every backend can answer; and `get_interface_version(capability)`, the
+  portal interface version, `-1` on any backend that is not a portal.
+
+  Nothing changes for game code — `has_capability()` and
+  `get_interface_version()` keep their signatures and meanings. What changes is
+  that a non-portal backend no longer has to answer in a vocabulary describing
+  D-Bus interfaces it does not have: the macOS backend now reports
+  `POWER_PROFILE_MONITOR` and nothing else, instead of a table of portal names
+  with one entry set. Custom backends implementing the old method must migrate.
+
+  `INTERFACE_NAMES` remains, documented as descriptive rather than the
+  mechanism; `get_interface_version(c) >= 0` is no longer an availability check.
 
 - **Breaking: the autoload is now `DesktopServices`, not `XDGPortal`.** With a
   macOS backend in the tree, a name asserting XDG portals was no longer honest —

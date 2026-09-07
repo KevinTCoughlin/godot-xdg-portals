@@ -28,13 +28,25 @@ var calls: Array[Dictionary] = []
 ## Whether the mock reports portals as reachable.
 var available: bool = true
 
-## Interface versions handed to the facade for capability discovery.
+## Which capabilities the mock reports. Keyed by
+## [code]DesktopServices.Capability[/code]; set one to [code]false[/code] to
+## exercise a backend that cannot serve it.
+var capabilities: Dictionary = {
+	_FACADE.Capability.GAME_MODE: true,
+	_FACADE.Capability.INHIBIT: true,
+	_FACADE.Capability.POWER_PROFILE_MONITOR: true,
+	_FACADE.Capability.OPEN_URI: true,
+	_FACADE.Capability.NOTIFICATION: true,
+}
+## Portal interface versions, keyed by the same [code]Capability[/code] values.
+## Only meaningful for version-gated members such as `SchemeSupported`; lower one
+## to exercise an older portal.
 var interface_versions: Dictionary = {
-	"org.freedesktop.portal.GameMode": 1,
-	"org.freedesktop.portal.Inhibit": 3,
-	"org.freedesktop.portal.PowerProfileMonitor": 1,
-	"org.freedesktop.portal.OpenURI": 5,
-	"org.freedesktop.portal.Notification": 2,
+	_FACADE.Capability.GAME_MODE: 1,
+	_FACADE.Capability.INHIBIT: 3,
+	_FACADE.Capability.POWER_PROFILE_MONITOR: 1,
+	_FACADE.Capability.OPEN_URI: 5,
+	_FACADE.Capability.NOTIFICATION: 2,
 }
 
 ## Value returned by [method game_mode_query_status].
@@ -69,8 +81,18 @@ func is_available() -> bool:
 	return available
 
 
-func get_interface_versions() -> Dictionary:
-	return interface_versions.duplicate()
+func get_capabilities() -> Dictionary:
+	return capabilities.duplicate()
+
+
+## An unavailable capability has no interface to version, so this reports
+## [code]-1[/code] regardless of [member interface_versions]. A real portal
+## cannot export a version for an interface it does not have, and a mock that
+## could express that would let a test pass against an impossible desktop.
+func get_interface_version(capability: int) -> int:
+	if not bool(capabilities.get(capability, false)):
+		return -1
+	return int(interface_versions.get(capability, -1))
 
 
 func game_mode_query_status(pid: int) -> int:
