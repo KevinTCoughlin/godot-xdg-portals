@@ -27,6 +27,9 @@ On every null-backend platform the addon still imports, the autoload still
 installs, and every call returns an honest "unavailable" answer. No native
 library is required, and none is loaded.
 
+For what a game should do on those platforms instead, see
+[`cross-platform.md`](cross-platform.md).
+
 ## Runtime dependencies
 
 - GLib, GIO and GObject ≥ 2.66, linked dynamically against the host system or

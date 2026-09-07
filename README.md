@@ -165,6 +165,7 @@ manual checklist in [`docs/native-testing.md`](docs/native-testing.md).
 - [`docs/api.md`](docs/api.md) — every method, signal and enum
 - [`docs/architecture.md`](docs/architecture.md) — the three layers and the threading model
 - [`docs/compatibility.md`](docs/compatibility.md) — platforms, portal versions, desktop support
+- [`docs/cross-platform.md`](docs/cross-platform.md) — shipping a game that also runs on Windows and macOS
 - [`docs/native-testing.md`](docs/native-testing.md) — the manual desktop checklist
 - [`docs/roadmap.md`](docs/roadmap.md) — what is planned and what is deliberately out of scope
 
