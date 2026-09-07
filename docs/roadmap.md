@@ -23,6 +23,76 @@ release archive.
 - **Prebuilt Linux arm64 libraries.** The build already supports arm64; the
   release workflow does not cross-compile yet.
 - **Godot 4.5 in the CI matrix**, once it is the widely deployed version.
+- **C# support for the .NET flavour of the engine.** See below; the native
+  layer already works there, so this is a binding and packaging question
+  rather than a portal one.
+
+## C# support
+
+The GDExtension itself needs no changes: extension loading is engine-level and
+independent of the scripting language, so `libxdg_portals.linux.*.so` already
+loads in a Godot .NET build. What is missing is a usable API on top of it.
+
+As of Godot 4.4, C# bindings are generated only for core engine classes, so
+GDExtension types are reachable from C# only dynamically:
+
+```csharp
+var portal = GetNode("/root/XDGPortal");
+var handle = portal.Call("inhibit", 8, "Cutscene").AsString();
+```
+
+That works today with no change to this repository, but it is stringly typed,
+has no enums, and — most importantly — turns the `null`-means-unknown contract
+into a bare `Variant` that is easy to misread as `false`. That contract is the
+whole point of the addon, so a C# surface that loses it is worse than none.
+
+**Shape.** A thin typed shim over the *GDScript facade*, not over
+`XdgPortalNative` directly. All the logic worth having — argument validation,
+capability gating, `file:` rejection, enum mapping, honest returns, backend
+selection — lives in the facade. Reimplementing it in C# would mean two
+implementations of the honesty rules drifting apart, which is exactly the kind
+of difference that must not exist between languages. The cost is one `Variant`
+marshal per call, irrelevant for calls made a handful of times per session.
+
+`bool?` maps the tri-state better than GDScript can express it:
+
+```csharp
+public static bool? IsPowerSaverEnabled()
+{
+    var v = _portal.Call("is_power_saver_enabled");
+    return v.VariantType == Variant.Type.Nil ? null : v.AsBool();
+}
+```
+
+**What it entails.**
+
+| Work | Size |
+| --- | --- |
+| `XdgPortal.cs` shim: methods, `[Flags] InhibitFlags`, the other enums, `event` wrappers over the signals via `Callable.From<>` | ~300–400 lines, straightforward |
+| A test asserting the C# enum values match the GDScript constants at runtime | small, and essential — this is the drift hazard |
+| A separate C# demo/test project | the real structural cost, see below |
+| CI job: .NET SDK plus the `mono`/.NET Godot build | new download, roughly doubles the CI matrix |
+| A C# section in `docs/api.md` and a compatibility note | small |
+
+**The structural cost.** A Godot .NET project needs a `.csproj`, and this
+repository root *is* the test-bed project. Adding one there would force
+GDScript-only users onto the .NET editor build. So the C# side needs its own
+project directory referencing the addon, which means the addon is consumed two
+different ways in one repository.
+
+**Gotchas.**
+
+- The tri-state must survive the boundary: `Variant.Type.Nil` maps to `null`,
+  never `false`.
+- `request_completed` results arrive as `Godot.Collections.Dictionary`; a typed
+  result object is extra design work.
+- Anything polled per frame (`IsPowerSaverEnabled()`) now pays a `Variant` hop,
+  so the shim should cache off the `PowerSaverChanged` event and say so.
+- C# event subscriptions to a GDScript autoload need explicit unsubscribe, or
+  the delegates outlive the scene.
+
+The mock backend stays usable from C# — `set_backend()` accepts any backend
+object — so this does not compromise testability.
 
 ## Under consideration
 
