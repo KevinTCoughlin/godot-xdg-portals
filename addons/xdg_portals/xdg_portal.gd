@@ -251,6 +251,29 @@ func inhibit(flags: int, reason: String, parent_window: String = "") -> String:
 	return _backend.inhibit(flags, reason, parent_window)
 
 
+## Mask of [enum InhibitFlags] bits [method inhibit] can ask the current backend
+## for, or [code]0[/code] when inhibition is unavailable.
+##
+## Use it to find out what a platform can request before asking:
+##
+## [codeblock]
+## var wanted := XDGPortal.InhibitFlags.IDLE | XDGPortal.InhibitFlags.SUSPEND
+## if wanted & XDGPortal.get_supported_inhibit_flags() == wanted:
+##     handle = XDGPortal.inhibit(wanted, "Cutscene")
+## [/codeblock]
+##
+## This is a static property of the backend, not a report of what the session
+## did: a desktop that quietly ignores a bit it advertises is indistinguishable
+## from one that acts on it, because the portal returns a request handle and
+## never says which bits it honoured. [method inhibit] is unchanged by this — it
+## still forwards any valid mask, and the portal remains free to ignore parts of
+## it.
+func get_supported_inhibit_flags() -> int:
+	if not has_capability(Capability.INHIBIT):
+		return 0
+	return _backend.get_supported_inhibit_flags()
+
+
 ## Closes a request handle returned by [method inhibit] or [method open_uri],
 ## cancelling it if it is still pending.
 func close_request(handle: String) -> bool:

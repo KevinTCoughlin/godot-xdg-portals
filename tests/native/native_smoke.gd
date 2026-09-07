@@ -56,6 +56,11 @@ func _check_discovery() -> void:
 	for capability: int in _portal.INTERFACE_NAMES:
 		_expect(_portal.has_capability(capability),
 			"capability %d should be discovered" % capability)
+	# Exercised here rather than in the mock suite: this is the one path that
+	# reads the mask through the real native backend.
+	_expect(_portal.get_supported_inhibit_flags() == _portal.INHIBIT_FLAGS_MASK,
+		"the portal can request every documented inhibit bit, got %d"
+			% _portal.get_supported_inhibit_flags())
 
 
 func _check_game_mode() -> void:

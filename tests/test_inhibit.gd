@@ -28,6 +28,31 @@ func test_inhibit_accepts_every_documented_flag() -> void:
 	assert_ne(portal.inhibit(Facade.INHIBIT_FLAGS_MASK, "Everything"), "")
 
 
+func test_supported_flags_reports_the_backend_mask() -> void:
+	assert_eq(portal.get_supported_inhibit_flags(), Facade.INHIBIT_FLAGS_MASK)
+
+
+func test_supported_flags_reports_a_partial_backend() -> void:
+	mock.next_supported_inhibit_flags = Facade.InhibitFlags.IDLE | Facade.InhibitFlags.SUSPEND
+	var supported: int = portal.get_supported_inhibit_flags()
+	assert_eq(supported & Facade.InhibitFlags.IDLE, Facade.InhibitFlags.IDLE)
+	assert_eq(supported & Facade.InhibitFlags.LOGOUT, 0, "logout is not requestable here")
+
+
+func test_supported_flags_is_zero_without_the_capability() -> void:
+	mock.interface_versions["org.freedesktop.portal.Inhibit"] = -1
+	portal.refresh_capabilities()
+	assert_eq(portal.get_supported_inhibit_flags(), 0, "nothing is requestable")
+
+
+func test_supported_flags_does_not_gate_inhibit() -> void:
+	# The portal may ignore bits it advertises, and never reports which it
+	# honoured, so a narrower mask here must not change what inhibit() forwards.
+	mock.next_supported_inhibit_flags = Facade.InhibitFlags.IDLE
+	assert_ne(portal.inhibit(Facade.INHIBIT_FLAGS_MASK, "Everything"), "")
+	assert_eq(mock.calls_to("inhibit")[0]["args"][0], Facade.INHIBIT_FLAGS_MASK)
+
+
 func test_inhibit_rejects_zero_flags() -> void:
 	var errors := capture(portal, "portal_error")
 	assert_eq(portal.inhibit(0, "Nothing"), "", "an empty mask inhibits nothing")

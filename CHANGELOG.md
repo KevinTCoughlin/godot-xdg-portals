@@ -8,6 +8,14 @@ Before 1.0 the public API may change in a minor release.
 
 ## [Unreleased]
 
+### Added
+
+- `XDGPortal.get_supported_inhibit_flags()` and the matching backend method,
+  reporting which `InhibitFlags` bits the current backend can request. Against a
+  portal this is every documented bit; a backend that cannot inhibit reports
+  `0`. It declares what is requestable, not what a session honoured — the portal
+  never reports which bits it acted on — and it does not gate `inhibit()`.
+
 ## [0.1.0] — 2026-09-06
 
 Initial release.
