@@ -1,0 +1,16 @@
+# SPDX-FileCopyrightText: 2026 Kevin Coughlin
+#
+# SPDX-License-Identifier: MIT
+
+# Renders the "Sponsor" button on the repository page. The button only appears
+# once GitHub Sponsors is enabled for the account; until then this file is inert
+# rather than broken.
+#
+# Uncomment a platform after creating the account, and keep the handle exact —
+# GitHub does not validate these, so a typo silently produces a dead link.
+github: [KevinTCoughlin]
+# ko_fi:
+# liberapay:
+# open_collective:
+# thanks_dev:
+# custom: []
