@@ -635,7 +635,7 @@ void XdgPortalNative::on_properties_changed(GDBusConnection *, const gchar *, co
 				self->power_saver_enabled = enabled;
 			}
 			if (changed_state) {
-				self->call_deferred("emit_signal", "power_saver_changed", enabled);
+				self->call_deferred("emit_signal", "power_saver_changed", Variant(enabled));
 			}
 			g_variant_unref(value);
 		}
