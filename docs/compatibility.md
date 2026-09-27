@@ -5,11 +5,13 @@
 | Godot | Status |
 | --- | --- |
 | 4.4.x | Supported and tested (4.4.1 in CI). |
-| 4.5+ | Expected to work — `compatibility_minimum` is `4.4` and the extension uses no 4.4-only API. Not covered by CI yet. |
+| 4.5–4.6 | Expected to work — `compatibility_minimum` is `4.4`; these versions are not covered by CI. |
+| 4.7.2 | Supported and tested in CI: the mock suite and native backend smoke test run against this engine. |
 | 4.3 and older | Unsupported. The GDExtension ABI level declared here is 4.4. |
 
-godot-cpp is pinned to `godot-4.4.1-stable`. An extension built against 4.4
-loads in later 4.x engines; the reverse is not true.
+godot-cpp is pinned to `godot-4.4.1-stable`, preserving the 4.4 minimum. CI
+loads that same native library in Godot 4.4.1 and 4.7.2; it does not assume
+that building against the older API alone proves newer-engine compatibility.
 
 ## Platforms
 

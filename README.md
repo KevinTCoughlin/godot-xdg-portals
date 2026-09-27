@@ -28,7 +28,7 @@ exposes no way to make an arbitrary D-Bus call.
 
 ## Requirements
 
-- Godot 4.4 or newer
+- Godot 4.4 or newer (4.4.1 and 4.7.2 tested in CI)
 - Linux with a running `xdg-desktop-portal` service, for the native backend
 - GLib/GIO 2.66+ at runtime (already present on any modern desktop and in the
   Flatpak runtimes)
