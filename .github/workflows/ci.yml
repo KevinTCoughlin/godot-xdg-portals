@@ -17,9 +17,6 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
-env:
-  GODOT_VERSION: 4.4.1
-
 jobs:
   native:
     name: Native build (${{ matrix.target }})
@@ -101,9 +98,14 @@ jobs:
           if-no-files-found: error
 
   tests:
-    # `env` is not available in a job `name`, so the version stays out of it.
-    name: Godot test suite
+    name: Godot test suite (${{ matrix.godot_version }})
     runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        godot_version: [4.4.1, 4.7.2]
+    env:
+      GODOT_VERSION: ${{ matrix.godot_version }}
     steps:
       - uses: actions/checkout@v7
 
@@ -124,8 +126,14 @@ jobs:
         run: ./scripts/run_tests.sh
 
   native-smoke:
-    name: Native backend vs. fake portal
+    name: Native backend vs. fake portal (${{ matrix.godot_version }})
     runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        godot_version: [4.4.1, 4.7.2]
+    env:
+      GODOT_VERSION: ${{ matrix.godot_version }}
     steps:
       - uses: actions/checkout@v7
 
