@@ -19,10 +19,16 @@ permissions:
 
 jobs:
   package:
-    name: Package Linux x86-64 addon archive
-    runs-on: ubuntu-24.04
-    permissions:
-      contents: write
+    name: Package Linux ${{ matrix.arch }} addon archive
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86_64
+            runner: ubuntu-24.04
+          - arch: arm64
+            runner: ubuntu-24.04-arm
     steps:
       - uses: actions/checkout@v7
 
@@ -56,9 +62,17 @@ jobs:
         id: stage
         env:
           VERSION: ${{ steps.version.outputs.version }}
+          ARCH: ${{ matrix.arch }}
         run: |
           set -euo pipefail
-          name="godot-xdg-portals-${VERSION}-linux-x86_64"
+          case "$(uname -m)" in
+            x86_64|aarch64) ;;
+            *) echo "Unexpected runner architecture: $(uname -m)" >&2; exit 1 ;;
+          esac
+          actual_arch="$(uname -m)"
+          if [ "$actual_arch" = aarch64 ]; then actual_arch=arm64; fi
+          test "$actual_arch" = "$ARCH"
+          name="godot-xdg-portals-${VERSION}-linux-${ARCH}"
           stage="dist/${name}"
           mkdir -p "${stage}/addons"
           cp -r addons/xdg_portals "${stage}/addons/"
@@ -66,9 +80,9 @@ jobs:
 
           # The archive ships only what a consumer installs: no build trees, no
           # editor caches, no test or demo sources.
-          test -f "${stage}/addons/xdg_portals/bin/libxdg_portals.linux.template_release.x86_64.so"
-          test -f "${stage}/addons/xdg_portals/bin/libxdg_portals.linux.template_debug.x86_64.so"
-          test -f "${stage}/addons/xdg_portals/bin/libxdg_portals.linux.editor.x86_64.so"
+          test -f "${stage}/addons/xdg_portals/bin/libxdg_portals.linux.template_release.${ARCH}.so"
+          test -f "${stage}/addons/xdg_portals/bin/libxdg_portals.linux.template_debug.${ARCH}.so"
+          test -f "${stage}/addons/xdg_portals/bin/libxdg_portals.linux.editor.${ARCH}.so"
           test -f "${stage}/addons/xdg_portals/xdg_portals.gdextension"
           test -f "${stage}/addons/xdg_portals/plugin.cfg"
           test -f "${stage}/addons/xdg_portals/desktop_services.gd"
@@ -84,11 +98,25 @@ jobs:
 
       - uses: actions/upload-artifact@v7
         with:
-          name: godot-xdg-portals-linux-x86_64
+          name: godot-xdg-portals-linux-${{ matrix.arch }}
           path: |
             ${{ steps.stage.outputs.archive }}
             ${{ steps.stage.outputs.checksum }}
           if-no-files-found: error
+
+  publish:
+    name: Publish draft release
+    needs: package
+    if: github.event_name == 'push'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: godot-xdg-portals-linux-*
+          path: dist
+          merge-multiple: true
 
       - name: Publish the GitHub release
         if: github.event_name == 'push'
@@ -97,5 +125,5 @@ jobs:
           draft: true
           generate_release_notes: true
           files: |
-            ${{ steps.stage.outputs.archive }}
-            ${{ steps.stage.outputs.checksum }}
+            dist/*.zip
+            dist/*.zip.sha256

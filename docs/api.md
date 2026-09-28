@@ -86,6 +86,8 @@ the result as "what can be requested here", never as "what will happen".
 answer arrives on `request_completed`. The inhibition stays in effect until the
 handle is closed with `close_request()` (which calls
 `org.freedesktop.portal.Request.Close`) or the application exits.
+The returned handle remains the identifier in `request_completed` and
+`close_request()` even if the portal returns a different internal object path.
 
 `parent_window` is the portal window identifier of the window the request
 belongs to (`"x11:<hex xid>"` or `"wayland:<handle>"`). An empty string means

@@ -17,6 +17,7 @@
 #include <map>
 #include <memory>
 #include <mutex>
+#include <set>
 #include <thread>
 
 namespace xdg_portals {
@@ -88,13 +89,18 @@ private:
 
 	godot::String unavailable_reason;
 
-	// Guards `power_saver_*`, `request_subscriptions` and `handle_counter`.
+	// Guards `power_saver_*`, request paths and `handle_counter`.
 	mutable std::mutex state_mutex;
 	bool power_saver_known = false;
 	bool power_saver_enabled = false;
 	guint power_saver_subscription = 0;
 	guint action_invoked_subscription = 0;
 	std::map<godot::String, guint> request_subscriptions;
+	// The returned handle remains the public identifier even if the portal
+	// answers with a different object path. Keep the actual path for Close.
+	std::map<godot::String, godot::String> actual_request_paths;
+	std::map<godot::String, godot::String> public_request_handles;
+	std::set<godot::String> inhibit_request_handles;
 	guint handle_counter = 0;
 
 	// Helpers.

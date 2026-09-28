@@ -37,6 +37,9 @@ sudo apt-get install build-essential cmake pkg-config libglib2.0-dev dbus
 Open the repository root as a Godot 4.4+ project: it is both the demo project and
 the test bed.
 
+For Zed, VS Code and an optional per-clone Delta pager setup, see
+[`docs/development-editors.md`](docs/development-editors.md).
+
 ## Before you open a pull request
 
 Run all of it. CI runs the same things, and a red CI costs a review round.

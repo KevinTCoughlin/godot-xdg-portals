@@ -1,0 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kevin Coughlin
+#
+# SPDX-License-Identifier: MIT
+
+CompileFlags:
+  CompilationDatabase: build-editor

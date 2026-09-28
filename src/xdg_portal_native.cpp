@@ -241,6 +241,9 @@ void XdgPortalNative::teardown() {
 			g_dbus_connection_signal_unsubscribe(connection, entry.second);
 		}
 		request_subscriptions.clear();
+		actual_request_paths.clear();
+		public_request_handles.clear();
+		inhibit_request_handles.clear();
 		if (power_saver_subscription != 0) {
 			g_dbus_connection_signal_unsubscribe(connection, power_saver_subscription);
 			power_saver_subscription = 0;
@@ -504,6 +507,14 @@ void XdgPortalNative::on_request_call_finished(GObject *p_source, GAsyncResult *
 		const String actual_handle = String::utf8(actual);
 		if (actual_handle != payload->handle) {
 			self->unsubscribe_request(payload->handle);
+			{
+				std::lock_guard<std::mutex> guard(self->state_mutex);
+				self->actual_request_paths[payload->handle] = actual_handle;
+				self->public_request_handles[actual_handle] = payload->handle;
+				if (payload->context == "Inhibit.Inhibit") {
+					self->inhibit_request_handles.insert(payload->handle);
+				}
+			}
 			self->subscribe_request(actual_handle);
 		}
 	}
@@ -528,9 +539,22 @@ void XdgPortalNative::on_request_response(GDBusConnection *, const gchar *, cons
 		g_variant_unref(results);
 	}
 
-	const String handle = String::utf8(p_path);
-	self->unsubscribe_request(handle);
-	self->emit_request_completed(handle, static_cast<int>(response), payload);
+	const String actual_handle = String::utf8(p_path);
+	String public_handle = actual_handle;
+	{
+		std::lock_guard<std::mutex> guard(self->state_mutex);
+		const auto it = self->public_request_handles.find(actual_handle);
+		if (it != self->public_request_handles.end()) {
+			public_handle = it->second;
+			if (response != 0 || self->inhibit_request_handles.count(public_handle) == 0) {
+				self->actual_request_paths.erase(public_handle);
+				self->public_request_handles.erase(it);
+				self->inhibit_request_handles.erase(public_handle);
+			}
+		}
+	}
+	self->unsubscribe_request(actual_handle);
+	self->emit_request_completed(public_handle, static_cast<int>(response), payload);
 }
 
 String XdgPortalNative::inhibit(int p_flags, const String &p_reason, const String &p_parent_window) {
@@ -567,11 +591,18 @@ bool XdgPortalNative::close_request(const String &p_handle) {
 		return false;
 	}
 
+	String actual_handle = p_handle;
+	{
+		std::lock_guard<std::mutex> guard(state_mutex);
+		const auto it = actual_request_paths.find(p_handle);
+		if (it != actual_request_paths.end()) {
+			actual_handle = it->second;
+		}
+	}
 	GError *error = nullptr;
 	GVariant *reply = g_dbus_connection_call_sync(connection, PORTAL_BUS_NAME,
-			p_handle.utf8().get_data(), IFACE_REQUEST, "Close", nullptr, nullptr,
+			actual_handle.utf8().get_data(), IFACE_REQUEST, "Close", nullptr, nullptr,
 			G_DBUS_CALL_FLAGS_NONE, SYNC_CALL_TIMEOUT_MS, cancellable, &error);
-	unsubscribe_request(p_handle);
 
 	if (reply == nullptr) {
 		if (error != nullptr) {
@@ -581,6 +612,13 @@ bool XdgPortalNative::close_request(const String &p_handle) {
 		return false;
 	}
 	g_variant_unref(reply);
+	unsubscribe_request(actual_handle);
+	{
+		std::lock_guard<std::mutex> guard(state_mutex);
+		actual_request_paths.erase(p_handle);
+		public_request_handles.erase(actual_handle);
+		inhibit_request_handles.erase(p_handle);
+	}
 	return true;
 }
 

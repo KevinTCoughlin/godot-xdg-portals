@@ -1,0 +1,17 @@
+{
+  "format_on_save": "off",
+  "languages": {
+    "GDScript": {
+      "hard_tabs": true,
+      "tab_size": 4
+    },
+    "C": {
+      "hard_tabs": true,
+      "tab_size": 4
+    },
+    "C++": {
+      "hard_tabs": true,
+      "tab_size": 4
+    }
+  }
+}

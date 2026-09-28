@@ -8,8 +8,8 @@ better served by the raw portal?
 
 Five portal interfaces (GameMode, Inhibit, PowerProfileMonitor, OpenURI,
 Notification), a null backend everywhere else, a mock backend for tests, a
-CMake build pinned to godot-cpp 4.4.1, and prebuilt Linux x86-64 libraries in the
-release archive.
+CMake build pinned to godot-cpp 4.4.1. The release workflow packages Linux
+x86-64 and arm64 libraries; no release archive is published yet.
 
 ## 0.2.0 — candidates
 
@@ -20,8 +20,6 @@ release archive.
 - **Inhibit session state monitoring.** `org.freedesktop.portal.Inhibit` also
   offers `CreateMonitor` and the `StateChanged` signal for
   screensaver-active/session-running state. Useful for pausing on lock.
-- **Prebuilt Linux arm64 libraries.** The build already supports arm64; the
-  release workflow does not cross-compile yet.
 - **Godot 4.5 in the CI matrix**, once it is the widely deployed version.
 - **C# support for the .NET flavour of the engine.** See below; the native
   layer already works there, so this is a binding and packaging question
