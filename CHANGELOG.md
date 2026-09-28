@@ -37,6 +37,8 @@ Before 1.0 the public API may change in a minor release.
 - Interactive requests keep the returned handle as their public identifier
   when a portal returns a different object path. Completion reports the
   original handle, and `close_request()` uses the portal's actual path.
+- The native power-saver smoke check waits for a real state transition, so its
+  result does not depend on the fake portal timer's phase.
 
 - The test runner now fails a suite that contributes no test methods. Godot's
   `load()` returns a script that failed to compile rather than `null`, so a

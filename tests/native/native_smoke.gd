@@ -116,8 +116,14 @@ func _check_async_paths() -> void:
 	# The fake service toggles power-saver every 300 ms.
 	var initial: Variant = _portal.is_power_saver_enabled()
 	_expect(initial != null, "the power-saver property should be readable")
+	# A transition may occur between the read and the await. Observe a few
+	# signals so the test checks for an actual state change, not timer phase.
 	# A single-argument signal yields that argument directly, not an array.
-	var changed: bool = await _portal.power_saver_changed
+	var changed: bool = false
+	for _attempt in range(4):
+		changed = await _portal.power_saver_changed
+		if changed != initial:
+			break
 	_expect(changed != initial, "the change notification should carry the new state")
 	_expect(_portal.is_power_saver_enabled() == changed,
 		"the cached state should follow the notification")
