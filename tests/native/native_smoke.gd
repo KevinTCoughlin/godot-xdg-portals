@@ -87,14 +87,16 @@ func _check_notification_sync() -> void:
 
 
 func _check_async_paths() -> void:
-	# Inhibit: the handle the client predicts must be the one the service answers
-	# on, otherwise the Response signal would never be matched.
+	# Inhibit: the fake service deliberately returns a different object path.
+	# Completion must retain the handle returned to the caller, while Close must
+	# use the real path supplied by the service.
 	var handle: String = _portal.inhibit(_portal.InhibitFlags.IDLE, "Smoke test")
 	_expect(handle.begins_with("/org/freedesktop/portal/desktop/request/"),
 		"inhibit should predict a request handle, got '%s'" % handle)
 	var inhibit_result: Array = await _portal.request_completed
-	_expect(inhibit_result[0] == handle, "the response should arrive on the predicted handle")
+	_expect(inhibit_result[0] == handle, "completion should use the caller's handle")
 	_expect(inhibit_result[1] == _portal.Response.SUCCESS, "the fake service answers 0")
+	_expect(_portal.close_request(handle), "Close should resolve the caller's handle to the portal path")
 
 	# OpenURI: the fake service answers 1, proving the real response code is
 	# forwarded rather than assumed to be a success.
@@ -114,8 +116,14 @@ func _check_async_paths() -> void:
 	# The fake service toggles power-saver every 300 ms.
 	var initial: Variant = _portal.is_power_saver_enabled()
 	_expect(initial != null, "the power-saver property should be readable")
+	# A transition may occur between the read and the await. Observe a few
+	# signals so the test checks for an actual state change, not timer phase.
 	# A single-argument signal yields that argument directly, not an array.
-	var changed: bool = await _portal.power_saver_changed
+	var changed: bool = false
+	for _attempt in range(4):
+		changed = await _portal.power_saver_changed
+		if changed != initial:
+			break
 	_expect(changed != initial, "the change notification should carry the new state")
 	_expect(_portal.is_power_saver_enabled() == changed,
 		"the cached state should follow the notification")

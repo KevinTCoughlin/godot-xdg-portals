@@ -17,8 +17,8 @@ that building against the older API alone proves newer-engine compatibility.
 
 | Platform | Backend | Notes |
 | --- | --- | --- |
-| Linux x86-64 | native | Prebuilt in the release archive. |
-| Linux arm64 | native | Supported by the build; not prebuilt — run `scripts/build.sh` on the target. |
+| Linux x86-64 | native | The release workflow builds a prebuilt archive; build from source until one is published. |
+| Linux arm64 | native | The release workflow builds a prebuilt archive on an ARM64 runner; build from source until one is published. |
 | Linux, no session bus | null | Headless servers, containers, `--headless` CI. Reports GLib's own reason. |
 | Windows | null | No portal service exists, and no native equivalent is built. |
 | macOS | partial (`macos`) | Power-saver state only, via `MacPowerMonitor`. Universal (x86-64 + arm64); not prebuilt yet. The other four report unavailable. |

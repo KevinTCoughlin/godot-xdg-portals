@@ -10,7 +10,7 @@ a real desktop can prove.
 ./scripts/run_tests.sh
 ```
 
-70 tests across seven suites, all through `DesktopServicesMockBackend`. No bus, no
+The facade tests run through `DesktopServicesMockBackend`. No bus, no
 display, no portal service, no timers — the same result on a laptop and on a
 bare runner. This covers the facade: validation, capability gating, enum
 mapping, signal forwarding, and the honesty rules (`null` / `-1` / `""` / `false`
@@ -36,8 +36,10 @@ It exercises the parts of the native layer that need no human:
 - GameMode's three synchronous calls;
 - `SchemeSupported`, and local rejection of `file:` in both cases;
 - `AddNotification` / `RemoveNotification`;
-- request-handle prediction — the fixture rebuilds the path from the caller's
-  unique name and `handle_token`, so a mismatch fails the test;
+- request-handle prediction and remapping — the fixture rebuilds the path from
+  the caller's unique name and `handle_token`, then deliberately returns a
+  different path for Inhibit; completion retains the caller's handle and Close
+  reaches the actual portal path;
 - `Request.Response` delivery for both `Inhibit` and `OpenURI`, including that a
   non-zero response code is forwarded as `CANCELLED` rather than assumed
   successful;
@@ -61,7 +63,9 @@ These checks need a graphical Linux session with a running
 `xdg-desktop-portal` and a backend implementation, and several of them show a
 dialog a human has to answer. **They have not been run as part of this
 repository's automation, and CI does not claim otherwise.** Run them before
-tagging a release, and record the results in the release notes.
+tagging a release, record the results in
+[`desktop-test-results.md`](desktop-test-results.md), and summarize them in the
+release notes.
 
 Run the demo project (`demo/demo.tscn`) and work through the list. Its log pane
 shows exactly what the portal answered.

@@ -46,6 +46,8 @@ path = [
     "THIRD_PARTY_NOTICES.md",
     "docs/**",
     ".github/**",
+    ".vscode/**",
+    ".zed/**",
 ]
 precedence = "aggregate"
 SPDX-FileCopyrightText = "2026 Kevin Coughlin"

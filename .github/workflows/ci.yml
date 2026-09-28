@@ -19,12 +19,13 @@ concurrency:
 
 jobs:
   native:
-    name: Native build (${{ matrix.target }})
-    runs-on: ubuntu-24.04
+    name: Native build (${{ matrix.arch }}, ${{ matrix.target }})
+    runs-on: ${{ matrix.arch == 'arm64' && 'ubuntu-24.04-arm' || 'ubuntu-24.04' }}
     strategy:
       fail-fast: false
       matrix:
         target: [template_debug, template_release, editor]
+        arch: [x86_64, arm64]
     steps:
       - uses: actions/checkout@v7
 
@@ -38,7 +39,7 @@ jobs:
         uses: actions/cache@v6
         with:
           path: build-${{ matrix.target }}/_deps
-          key: godot-cpp-${{ matrix.target }}-${{ hashFiles('CMakeLists.txt') }}
+          key: godot-cpp-${{ matrix.arch }}-${{ matrix.target }}-${{ hashFiles('CMakeLists.txt') }}
 
       - name: Build
         run: ./scripts/build.sh --target ${{ matrix.target }}
@@ -46,14 +47,14 @@ jobs:
       - name: Verify the library exports the GDExtension entry point
         run: |
           set -euo pipefail
-          library="addons/xdg_portals/bin/libxdg_portals.linux.${{ matrix.target }}.x86_64.so"
+          library="addons/xdg_portals/bin/libxdg_portals.linux.${{ matrix.target }}.${{ matrix.arch }}.so"
           test -f "$library"
           nm -D --defined-only "$library" | grep -q ' xdg_portals_library_init$'
           echo "Found xdg_portals_library_init in $library"
 
       - uses: actions/upload-artifact@v7
         with:
-          name: libxdg_portals-linux-x86_64-${{ matrix.target }}
+          name: libxdg_portals-linux-${{ matrix.arch }}-${{ matrix.target }}
           path: addons/xdg_portals/bin/*.so
 
   macos:
@@ -126,12 +127,13 @@ jobs:
         run: ./scripts/run_tests.sh
 
   native-smoke:
-    name: Native backend vs. fake portal (${{ matrix.godot_version }})
-    runs-on: ubuntu-24.04
+    name: Native backend vs. fake portal (${{ matrix.arch }}, ${{ matrix.godot_version }})
+    runs-on: ${{ matrix.arch == 'arm64' && 'ubuntu-24.04-arm' || 'ubuntu-24.04' }}
     strategy:
       fail-fast: false
       matrix:
         godot_version: [4.4.1, 4.7.2]
+        arch: [x86_64, arm64]
     env:
       GODOT_VERSION: ${{ matrix.godot_version }}
     steps:
@@ -146,23 +148,22 @@ jobs:
       - name: Install Godot
         run: |
           set -euo pipefail
-          archive="Godot_v${GODOT_VERSION}-stable_linux.x86_64"
+          godot_arch=x86_64
+          if [ "${{ matrix.arch }}" = arm64 ]; then godot_arch=arm64; fi
+          archive="Godot_v${GODOT_VERSION}-stable_linux.${godot_arch}"
           url="https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}-stable/${archive}.zip"
           curl --fail --location --silent --show-error --output godot.zip "$url"
           unzip -q godot.zip
           chmod +x "$archive"
           sudo mv "$archive" /usr/local/bin/godot
 
-      # Shares the key with the "Native build (editor)" job above: both call
-      # scripts/build.sh --target editor, so both populate build-editor/_deps
-      # with the same pinned godot-cpp checkout. Without this the job rebuilt
-      # godot-cpp from scratch on every run (~7 min) and was the long pole on
-      # every pull request.
+      # Shares the architecture-specific key with the editor native-build job:
+      # both populate build-editor/_deps with the same pinned godot-cpp checkout.
       - name: Cache godot-cpp checkout
         uses: actions/cache@v6
         with:
           path: build-editor/_deps
-          key: godot-cpp-editor-${{ hashFiles('CMakeLists.txt') }}
+          key: godot-cpp-${{ matrix.arch }}-editor-${{ hashFiles('CMakeLists.txt') }}
 
       - name: Build the editor-target library
         run: ./scripts/build.sh --target editor

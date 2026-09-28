@@ -81,10 +81,18 @@ static const gchar *INTROSPECTION_XML =
 		"    </signal>"
 		"    <property name='version' type='u' access='read'/>"
 		"  </interface>"
+		"  <interface name='org.freedesktop.portal.Request'>"
+		"    <method name='Close'/>"
+		"    <signal name='Response'>"
+		"      <arg type='u' name='response'/>"
+		"      <arg type='a{sv}' name='results'/>"
+		"    </signal>"
+		"  </interface>"
 		"</node>";
 
 static GDBusNodeInfo *introspection = NULL;
 static gboolean power_saver_enabled = TRUE;
+static const GDBusInterfaceVTable VTABLE;
 
 typedef struct {
 	gchar *handle;
@@ -198,10 +206,29 @@ static void handle_method_call(GDBusConnection *connection, const gchar *sender,
 	if (g_strcmp0(interface_name, "org.freedesktop.portal.Inhibit") == 0 &&
 			g_strcmp0(method_name, "Inhibit") == 0) {
 		GVariant *options = g_variant_get_child_value(parameters, 2);
-		gchar *handle = request_path_for(sender, options);
+		gchar *predicted = request_path_for(sender, options);
+		gchar *handle = g_strconcat(predicted, "_actual", NULL);
+		g_free(predicted);
 		g_variant_unref(options);
+		GError *error = NULL;
+		GDBusInterfaceInfo *request_interface = g_dbus_node_info_lookup_interface(
+				introspection, "org.freedesktop.portal.Request");
+		g_dbus_connection_register_object(connection, handle, request_interface,
+				&VTABLE, NULL, NULL, &error);
+		if (error != NULL) {
+			g_dbus_method_invocation_return_gerror(invocation, error);
+			g_clear_error(&error);
+			g_free(handle);
+			return;
+		}
 		g_dbus_method_invocation_return_value(invocation, g_variant_new("(o)", handle));
 		schedule_response(sender, handle, 0);
+		return;
+	}
+
+	if (g_strcmp0(interface_name, "org.freedesktop.portal.Request") == 0 &&
+			g_strcmp0(method_name, "Close") == 0) {
+		g_dbus_method_invocation_return_value(invocation, NULL);
 		return;
 	}
 
@@ -285,6 +312,10 @@ static void on_bus_acquired(GDBusConnection *connection, const gchar *name, gpoi
 	bus = connection;
 
 	for (guint i = 0; introspection->interfaces[i] != NULL; i++) {
+		if (g_strcmp0(introspection->interfaces[i]->name,
+				"org.freedesktop.portal.Request") == 0) {
+			continue;
+		}
 		GError *error = NULL;
 		g_dbus_connection_register_object(connection, PORTAL_PATH, introspection->interfaces[i],
 				&VTABLE, NULL, NULL, &error);

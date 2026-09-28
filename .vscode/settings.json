@@ -1,0 +1,22 @@
+{
+  "files.eol": "\n",
+  "files.insertFinalNewline": true,
+  "files.trimTrailingWhitespace": true,
+  "C_Cpp.default.compileCommands": "${workspaceFolder}/build-editor/compile_commands.json",
+  "files.watcherExclude": {
+    "**/.godot/**": true,
+    "**/build-*/**": true
+  },
+  "[gdscript]": {
+    "editor.insertSpaces": false,
+    "editor.tabSize": 4
+  },
+  "[c]": {
+    "editor.insertSpaces": false,
+    "editor.tabSize": 4
+  },
+  "[cpp]": {
+    "editor.insertSpaces": false,
+    "editor.tabSize": 4
+  }
+}
