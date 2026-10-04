@@ -177,8 +177,12 @@ bool XdgPortalNative::connect_bus() {
 		return false;
 	}
 
+	// GDBusConnectionFlags is a bit-flag enum, so an OR of two flags is valid
+	// even though no single enumerator equals it. GLib before 2.88 does not mark
+	// it G_GNUC_FLAG_ENUM (Ubuntu 24.04 ships 2.80), and without that the
+	// analyzer cannot tell.
 	connection = g_dbus_connection_new_for_address_sync(address,
-			static_cast<GDBusConnectionFlags>(G_DBUS_CONNECTION_FLAGS_AUTHENTICATION_CLIENT |
+			static_cast<GDBusConnectionFlags>(G_DBUS_CONNECTION_FLAGS_AUTHENTICATION_CLIENT | // NOLINT(clang-analyzer-optin.core.EnumCastOutOfRange)
 					G_DBUS_CONNECTION_FLAGS_MESSAGE_BUS_CONNECTION),
 			nullptr, cancellable, &error);
 	g_free(address);
