@@ -1,8 +1,8 @@
 # SPDX-FileCopyrightText: 2026 Kevin Coughlin
 #
 # SPDX-License-Identifier: MIT
-extends DesktopServicesBackend
 class_name DesktopServicesMockBackend
+extends DesktopServicesBackend
 
 ## Fully scripted backend used by the test suite and by games that want to
 ## exercise portal code paths without a desktop session.

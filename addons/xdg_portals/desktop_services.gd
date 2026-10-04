@@ -395,6 +395,9 @@ func _ensure_backend() -> void:
 		set_backend(_create_default_backend())
 
 
+# One early return per platform and failure mode, each with its own reason, reads
+# more plainly than threading a result variable through nested branches.
+# gdlint: disable=max-returns
 func _create_default_backend() -> DesktopServicesBackend:
 	if OS.has_feature("web"):
 		return DesktopServicesNullBackend.new("Desktop services are unavailable in a web build.")
@@ -426,6 +429,9 @@ func _create_default_backend() -> DesktopServicesBackend:
 			return DesktopServicesNullBackend.new("Could not reach the session bus.")
 		return DesktopServicesNullBackend.new("Could not reach the session bus: %s" % reason)
 	return native
+
+
+# gdlint: enable=max-returns
 
 
 func _connect_backend(backend: DesktopServicesBackend) -> void:

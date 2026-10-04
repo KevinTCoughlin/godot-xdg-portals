@@ -1,8 +1,8 @@
 # SPDX-FileCopyrightText: 2026 Kevin Coughlin
 #
 # SPDX-License-Identifier: MIT
-extends DesktopServicesBackend
 class_name DesktopServicesMacBackend
+extends DesktopServicesBackend
 
 ## Backend over the macOS [code]MacPowerMonitor[/code] GDExtension class.
 ##

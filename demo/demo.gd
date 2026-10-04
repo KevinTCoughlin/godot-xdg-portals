@@ -8,10 +8,10 @@ extends Control
 ## It is also the quickest way to check a real desktop session: run the project
 ## and the log pane shows exactly what the running portal service answered.
 
+var _inhibit_handle: String = ""
+
 @onready var _log: RichTextLabel = %Log
 @onready var _status: Label = %Status
-
-var _inhibit_handle: String = ""
 
 
 func _ready() -> void:

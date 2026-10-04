@@ -1,8 +1,8 @@
 # SPDX-FileCopyrightText: 2026 Kevin Coughlin
 #
 # SPDX-License-Identifier: MIT
-extends RefCounted
 class_name DesktopServicesBackend
+extends RefCounted
 
 ## Backend contract used by the [code]DesktopServices[/code] facade.
 ##

@@ -1,8 +1,8 @@
 # SPDX-FileCopyrightText: 2026 Kevin Coughlin
 #
 # SPDX-License-Identifier: MIT
-extends DesktopServicesBackend
 class_name DesktopServicesNullBackend
+extends DesktopServicesBackend
 
 ## Backend used wherever desktop portals cannot exist: Windows, macOS, mobile,
 ## web, and Linux sessions without a reachable session bus.

@@ -1,8 +1,8 @@
 # SPDX-FileCopyrightText: 2026 Kevin Coughlin
 #
 # SPDX-License-Identifier: MIT
-extends DesktopServicesBackend
 class_name DesktopServicesNativeBackend
+extends DesktopServicesBackend
 
 ## Thin adapter over the [code]XdgPortalNative[/code] GDExtension class.
 ##
