@@ -8,6 +8,8 @@ Before 1.0 the public API may change in a minor release.
 
 ## [Unreleased]
 
+## [0.2.0] — 2026-10-04
+
 ### Added
 
 - Linux arm64 release archives, built on native GitHub-hosted arm64 runners
@@ -147,9 +149,10 @@ Before 1.0 the public API may change in a minor release.
   names: on Linux the extension genuinely is the portal bridge. Permitted
   pre-1.0, per the versioning note above.
 
-## [0.1.0] — 2026-09-06
+## 0.1.0 — 2026-09-06
 
-Initial release.
+Initial version. It was never tagged or published as a release archive; 0.2.0
+is the first published release.
 
 ### Added
 
@@ -192,5 +195,5 @@ Initial release.
   `--talk-name=org.freedesktop.portal.Desktop`; no wildcard `--talk-name` and no
   system bus access.
 
-[Unreleased]: https://github.com/KevinTCoughlin/godot-xdg-portals/compare/v0.1.0...HEAD
-[0.1.0]: https://github.com/KevinTCoughlin/godot-xdg-portals/releases/tag/v0.1.0
+[Unreleased]: https://github.com/KevinTCoughlin/godot-xdg-portals/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/KevinTCoughlin/godot-xdg-portals/releases/tag/v0.2.0
