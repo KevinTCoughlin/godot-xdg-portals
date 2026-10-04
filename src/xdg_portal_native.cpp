@@ -27,11 +27,11 @@ bool debug_enabled() {
 	return enabled;
 }
 
-#define XDGP_LOG(...)                          \
-	do {                                       \
-		if (debug_enabled()) {                 \
+#define XDGP_LOG(...)                                 \
+	do {                                              \
+		if (debug_enabled()) {                        \
 			g_printerr("[xdg_portals] " __VA_ARGS__); \
-		}                                      \
+		}                                             \
 	} while (0)
 
 // One unit of work marshalled onto the worker thread.

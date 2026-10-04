@@ -313,7 +313,7 @@ static void on_bus_acquired(GDBusConnection *connection, const gchar *name, gpoi
 
 	for (guint i = 0; introspection->interfaces[i] != NULL; i++) {
 		if (g_strcmp0(introspection->interfaces[i]->name,
-				"org.freedesktop.portal.Request") == 0) {
+					"org.freedesktop.portal.Request") == 0) {
 			continue;
 		}
 		GError *error = NULL;
