@@ -17,8 +17,8 @@ that building against the older API alone proves newer-engine compatibility.
 
 | Platform | Backend | Notes |
 | --- | --- | --- |
-| Linux x86-64 | native | The release workflow builds a prebuilt archive; build from source until one is published. |
-| Linux arm64 | native | The release workflow builds a prebuilt archive on an ARM64 runner; build from source until one is published. |
+| Linux x86-64 | native | Prebuilt archive on the [releases page](https://github.com/KevinTCoughlin/godot-xdg-portals/releases) since 0.2.0. |
+| Linux arm64 | native | Prebuilt archive on the [releases page](https://github.com/KevinTCoughlin/godot-xdg-portals/releases) since 0.2.0, built on an ARM64 runner. |
 | Linux, no session bus | null | Headless servers, containers, `--headless` CI. Reports GLib's own reason. |
 | Windows | null | No portal service exists, and no native equivalent is built. |
 | macOS | partial (`macos`) | Power-saver state only, via `MacPowerMonitor`. Universal (x86-64 + arm64); not prebuilt yet. The other four report unavailable. |

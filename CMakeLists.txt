@@ -6,7 +6,7 @@ cmake_minimum_required(VERSION 3.22)
 
 project(
     xdg_portals
-    VERSION 0.1.0
+    VERSION 0.2.0
     DESCRIPTION "Godot 4 GDExtension for selected XDG Desktop Portal APIs"
     HOMEPAGE_URL "https://github.com/KevinTCoughlin/godot-xdg-portals"
     LANGUAGES CXX

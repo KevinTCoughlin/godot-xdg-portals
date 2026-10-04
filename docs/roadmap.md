@@ -4,14 +4,16 @@ The goal is a small, boring, dependable addon. Growth is measured against one
 question: does this belong behind a *typed, mockable* Godot API, or is it
 better served by the raw portal?
 
-## 0.1.0 — current
+## 0.2.0 — current
 
 Five portal interfaces (GameMode, Inhibit, PowerProfileMonitor, OpenURI,
-Notification), a null backend everywhere else, a mock backend for tests, a
-CMake build pinned to godot-cpp 4.4.1. The release workflow packages Linux
-x86-64 and arm64 libraries; no release archive is published yet.
+Notification) behind the `DesktopServices` autoload, a null backend everywhere
+else, an experimental macOS backend for power-saver state, and a mock backend for
+tests. Prebuilt Linux x86-64 and arm64 archives are on the releases page. CI
+enforces clang-format, clang-tidy, warnings-as-errors and gdlint, and runs the
+native smoke test against a fake portal in five modes, also under ASan + UBSan.
 
-## 0.2.0 — candidates
+## 0.3.0 — candidates
 
 - **Notification buttons and default actions.** `AddNotification` accepts a
   `buttons` array and a `default-action`; the facade currently posts title, body
