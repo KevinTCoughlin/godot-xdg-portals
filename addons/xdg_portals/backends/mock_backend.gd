@@ -150,6 +150,7 @@ func remove_notification(id: String) -> bool:
 
 # --- Test drivers -------------------------------------------------------------
 
+
 ## Emits [signal DesktopServicesBackend.request_completed] as the portal would.
 func complete_request(handle: String, response: int, results: Dictionary = {}) -> void:
 	request_completed.emit(handle, response, results)

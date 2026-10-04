@@ -49,25 +49,39 @@ func _initialize() -> void:
 func _check_discovery() -> void:
 	_expect(_portal.get_backend_name() == "native", "the native backend should be selected")
 	_expect(_portal.is_available(), "portals should be available against the fake service")
-	_expect(_portal.get_interface_version(_portal.Capability.OPEN_URI) == 5,
-		"OpenURI version should be read from the service")
-	_expect(_portal.get_interface_version(_portal.Capability.INHIBIT) == 3,
-		"Inhibit version should be read from the service")
+	_expect(
+		_portal.get_interface_version(_portal.Capability.OPEN_URI) == 5,
+		"OpenURI version should be read from the service"
+	)
+	_expect(
+		_portal.get_interface_version(_portal.Capability.INHIBIT) == 3,
+		"Inhibit version should be read from the service"
+	)
 	for capability: int in _portal.Capability.values():
-		_expect(_portal.has_capability(capability),
-			"capability %s should be discovered" % _portal.Capability.keys()[capability])
-		_expect(_portal.get_interface_version(capability) >= 0,
-			"and the native backend should report a portal version for it")
+		_expect(
+			_portal.has_capability(capability),
+			"capability %s should be discovered" % _portal.Capability.keys()[capability]
+		)
+		_expect(
+			_portal.get_interface_version(capability) >= 0,
+			"and the native backend should report a portal version for it"
+		)
 	# Exercised here rather than in the mock suite: this is the one path that
 	# reads the mask through the real native backend.
-	_expect(_portal.get_supported_inhibit_flags() == _portal.INHIBIT_FLAGS_MASK,
-		"the portal can request every documented inhibit bit, got %d"
-			% _portal.get_supported_inhibit_flags())
+	_expect(
+		_portal.get_supported_inhibit_flags() == _portal.INHIBIT_FLAGS_MASK,
+		(
+			"the portal can request every documented inhibit bit, got %d"
+			% _portal.get_supported_inhibit_flags()
+		)
+	)
 
 
 func _check_game_mode() -> void:
-	_expect(_portal.query_game_mode() == _portal.GameModeStatus.REGISTERED,
-		"the fake service reports the process as registered")
+	_expect(
+		_portal.query_game_mode() == _portal.GameModeStatus.REGISTERED,
+		"the fake service reports the process as registered"
+	)
 	_expect(_portal.request_game_mode(), "RegisterGame should succeed")
 	_expect(_portal.release_game_mode(), "UnregisterGame should succeed")
 
@@ -81,8 +95,10 @@ func _check_open_uri_validation() -> void:
 
 
 func _check_notification_sync() -> void:
-	_expect(_portal.add_notification("smoke", "Title", "Body", _portal.NotificationPriority.HIGH),
-		"AddNotification should succeed")
+	_expect(
+		_portal.add_notification("smoke", "Title", "Body", _portal.NotificationPriority.HIGH),
+		"AddNotification should succeed"
+	)
 	_expect(_portal.remove_notification("smoke"), "RemoveNotification should succeed")
 
 
@@ -91,12 +107,16 @@ func _check_async_paths() -> void:
 	# Completion must retain the handle returned to the caller, while Close must
 	# use the real path supplied by the service.
 	var handle: String = _portal.inhibit(_portal.InhibitFlags.IDLE, "Smoke test")
-	_expect(handle.begins_with("/org/freedesktop/portal/desktop/request/"),
-		"inhibit should predict a request handle, got '%s'" % handle)
+	_expect(
+		handle.begins_with("/org/freedesktop/portal/desktop/request/"),
+		"inhibit should predict a request handle, got '%s'" % handle
+	)
 	var inhibit_result: Array = await _portal.request_completed
 	_expect(inhibit_result[0] == handle, "completion should use the caller's handle")
 	_expect(inhibit_result[1] == _portal.Response.SUCCESS, "the fake service answers 0")
-	_expect(_portal.close_request(handle), "Close should resolve the caller's handle to the portal path")
+	_expect(
+		_portal.close_request(handle), "Close should resolve the caller's handle to the portal path"
+	)
 
 	# OpenURI: the fake service answers 1, proving the real response code is
 	# forwarded rather than assumed to be a success.
@@ -125,8 +145,10 @@ func _check_async_paths() -> void:
 		if changed != initial:
 			break
 	_expect(changed != initial, "the change notification should carry the new state")
-	_expect(_portal.is_power_saver_enabled() == changed,
-		"the cached state should follow the notification")
+	_expect(
+		_portal.is_power_saver_enabled() == changed,
+		"the cached state should follow the notification"
+	)
 
 
 func _expect(condition: bool, message: String) -> void:

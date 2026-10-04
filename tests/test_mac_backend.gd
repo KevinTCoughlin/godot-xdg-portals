@@ -43,8 +43,10 @@ func test_create_returns_null_without_the_extension() -> void:
 
 func test_reports_only_the_power_capability() -> void:
 	portal.set_backend(_bound_backend(FakeMonitor.new()))
-	assert_true(portal.has_capability(Facade.Capability.POWER_PROFILE_MONITOR),
-		"power-saver state is the one capability macOS backs")
+	assert_true(
+		portal.has_capability(Facade.Capability.POWER_PROFILE_MONITOR),
+		"power-saver state is the one capability macOS backs"
+	)
 	assert_false(portal.has_capability(Facade.Capability.GAME_MODE))
 	assert_false(portal.has_capability(Facade.Capability.INHIBIT))
 	assert_false(portal.has_capability(Facade.Capability.OPEN_URI))
@@ -54,8 +56,11 @@ func test_reports_only_the_power_capability() -> void:
 func test_unbacked_capabilities_stay_honest() -> void:
 	portal.set_backend(_bound_backend(FakeMonitor.new()))
 	assert_eq(portal.query_game_mode(), Facade.GameModeStatus.UNKNOWN)
-	assert_eq(portal.inhibit(Facade.InhibitFlags.IDLE, "Cutscene"), "",
-		"an unavailable inhibit yields no handle")
+	assert_eq(
+		portal.inhibit(Facade.InhibitFlags.IDLE, "Cutscene"),
+		"",
+		"an unavailable inhibit yields no handle"
+	)
 	assert_eq(portal.get_supported_inhibit_flags(), 0, "nothing is requestable")
 	assert_eq(portal.open_uri("https://godotengine.org"), "")
 	assert_null(portal.is_scheme_supported("https"))

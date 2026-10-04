@@ -75,8 +75,10 @@ func test_scheme_supported_reports_true_and_false() -> void:
 func test_scheme_supported_is_unknown_below_interface_version_5() -> void:
 	mock.interface_versions[Facade.Capability.OPEN_URI] = 4
 	portal.refresh_capabilities()
-	assert_null(portal.is_scheme_supported("https"),
-		"SchemeSupported does not exist before version 5, so the answer is unknown")
+	assert_null(
+		portal.is_scheme_supported("https"),
+		"SchemeSupported does not exist before version 5, so the answer is unknown"
+	)
 	assert_eq(mock.calls_to("scheme_supported").size(), 0)
 
 
@@ -86,8 +88,11 @@ func test_scheme_supported_is_unknown_when_the_portal_cannot_answer() -> void:
 
 
 func test_scheme_supported_rejects_the_file_scheme() -> void:
-	assert_eq(portal.is_scheme_supported("file"), false,
-		"the addon refuses file: whatever the portal reports")
+	assert_eq(
+		portal.is_scheme_supported("file"),
+		false,
+		"the addon refuses file: whatever the portal reports"
+	)
 	assert_eq(portal.is_scheme_supported("FILE"), false)
 	assert_eq(mock.calls_to("scheme_supported").size(), 0)
 

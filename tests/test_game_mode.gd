@@ -20,8 +20,11 @@ func test_query_reports_rejected() -> void:
 
 func test_query_maps_unrecognised_status_to_unknown() -> void:
 	mock.next_game_mode_status = 42
-	assert_eq(portal.query_game_mode(), Facade.GameModeStatus.UNKNOWN,
-		"an out-of-range status must not leak through as a valid value")
+	assert_eq(
+		portal.query_game_mode(),
+		Facade.GameModeStatus.UNKNOWN,
+		"an out-of-range status must not leak through as a valid value"
+	)
 
 
 func test_query_defaults_to_the_current_process() -> void:

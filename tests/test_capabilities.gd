@@ -33,10 +33,15 @@ func test_unavailable_backend_reports_no_capabilities() -> void:
 	portal.refresh_capabilities()
 	assert_false(portal.is_available())
 	for capability: int in Facade.Capability.values():
-		assert_false(portal.has_capability(capability),
-			"an unreachable backend serves nothing, whatever it last reported")
-		assert_eq(portal.get_interface_version(capability), -1,
-			"and has no interface version to report either")
+		assert_false(
+			portal.has_capability(capability),
+			"an unreachable backend serves nothing, whatever it last reported"
+		)
+		assert_eq(
+			portal.get_interface_version(capability),
+			-1,
+			"and has no interface version to report either"
+		)
 
 
 func test_refresh_capabilities_emits_the_signal() -> void:
@@ -71,6 +76,10 @@ func test_interface_name_mapping_is_complete() -> void:
 	# Every declared capability must name a real portal interface, otherwise
 	# discovery would silently report it as absent forever.
 	for capability: int in Facade.Capability.values():
-		assert_true(Facade.INTERFACE_NAMES.has(capability),
-			"capability %d has no interface name" % capability)
-		assert_true(String(Facade.INTERFACE_NAMES[capability]).begins_with("org.freedesktop.portal."))
+		assert_true(
+			Facade.INTERFACE_NAMES.has(capability),
+			"capability %d has no interface name" % capability
+		)
+		assert_true(
+			String(Facade.INTERFACE_NAMES[capability]).begins_with("org.freedesktop.portal.")
+		)

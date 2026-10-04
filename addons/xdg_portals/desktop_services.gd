@@ -27,7 +27,7 @@ extends Node
 
 ## Emitted after backend selection or injection, once capabilities have been
 ## re-discovered.
-signal capabilities_changed()
+signal capabilities_changed
 
 ## Emitted when the desktop's power-saver state changes.
 signal power_saver_changed(enabled: bool)
@@ -44,28 +44,27 @@ signal notification_action_invoked(id: String, action: String, parameters: Array
 ## Emitted when a portal call fails. [param context] names the D-Bus member.
 signal portal_error(context: String, message: String)
 
-
 ## Bit flags accepted by [method inhibit]. They may be combined with [code]|[/code].
 enum InhibitFlags {
-	LOGOUT = 1, ## Prevent the session from logging out.
-	USER_SWITCH = 2, ## Prevent switching to another user session.
-	SUSPEND = 4, ## Prevent the machine from suspending.
-	IDLE = 8, ## Prevent the session from marking itself idle.
+	LOGOUT = 1,  ## Prevent the session from logging out.
+	USER_SWITCH = 2,  ## Prevent switching to another user session.
+	SUSPEND = 4,  ## Prevent the machine from suspending.
+	IDLE = 8,  ## Prevent the session from marking itself idle.
 }
 
 ## Result of [method query_game_mode].
 enum GameModeStatus {
-	UNKNOWN = -1, ## The status could not be determined.
-	NOT_REGISTERED = 0, ## The process is not registered with GameMode.
-	REGISTERED = 1, ## The process is registered with GameMode.
-	REJECTED = 2, ## GameMode refused the registration.
+	UNKNOWN = -1,  ## The status could not be determined.
+	NOT_REGISTERED = 0,  ## The process is not registered with GameMode.
+	REGISTERED = 1,  ## The process is registered with GameMode.
+	REJECTED = 2,  ## GameMode refused the registration.
 }
 
 ## Response code carried by [signal request_completed].
 enum Response {
-	SUCCESS = 0, ## The request completed successfully.
-	CANCELLED = 1, ## The user dismissed the request.
-	OTHER = 2, ## The request ended for any other reason, including failure.
+	SUCCESS = 0,  ## The request completed successfully.
+	CANCELLED = 1,  ## The user dismissed the request.
+	OTHER = 2,  ## The request ended for any other reason, including failure.
 }
 
 ## Priority accepted by [method add_notification].
@@ -129,11 +128,14 @@ func _exit_tree() -> void:
 
 # --- Backend management -------------------------------------------------------
 
+
 ## Replaces the active backend. Tests use this to inject an
 ## [DesktopServicesMockBackend]; the previous backend is shut down and disconnected.
 func set_backend(backend: DesktopServicesBackend) -> void:
 	if backend == null:
-		push_error("DesktopServices.set_backend() requires a backend; use DesktopServicesNullBackend.new().")
+		push_error(
+			"DesktopServices.set_backend() requires a backend; use DesktopServicesNullBackend.new()."
+		)
 		return
 
 	if _backend != null:
@@ -176,6 +178,7 @@ func get_unavailable_reason() -> String:
 
 # --- Capability discovery -----------------------------------------------------
 
+
 ## Re-reads capabilities, and any portal interface versions behind them, from
 ## the backend and emits [signal capabilities_changed].
 func refresh_capabilities() -> void:
@@ -217,6 +220,7 @@ func get_interface_version(capability: Capability) -> int:
 
 # --- org.freedesktop.portal.GameMode -----------------------------------------
 
+
 ## Queries whether [param pid] is registered with GameMode. [code]0[/code] means
 ## the current process. Returns [constant GameModeStatus.UNKNOWN] when the status
 ## could not be determined.
@@ -247,6 +251,7 @@ func release_game_mode(pid: int = 0) -> bool:
 
 
 # --- org.freedesktop.portal.Inhibit ------------------------------------------
+
 
 ## Asks the session to suppress [param flags] (a mask of [enum InhibitFlags])
 ## while explaining why with [param reason].
@@ -297,6 +302,7 @@ func close_request(handle: String) -> bool:
 
 # --- org.freedesktop.portal.PowerProfileMonitor ------------------------------
 
+
 ## Whether the desktop is in power-saver mode, or [code]null[/code] when the
 ## state is unknown. Changes are reported by [signal power_saver_changed].
 func is_power_saver_enabled() -> Variant:
@@ -309,6 +315,7 @@ func is_power_saver_enabled() -> Variant:
 
 
 # --- org.freedesktop.portal.OpenURI ------------------------------------------
+
 
 ## Opens [param uri] in the user's preferred handler. Set [param ask] to force
 ## the "open with" chooser.
@@ -350,6 +357,7 @@ func is_scheme_supported(scheme: String) -> Variant:
 
 # --- org.freedesktop.portal.Notification -------------------------------------
 
+
 ## Posts a notification under [param id]. Reusing an id replaces the previous
 ## notification. Actions the user activates arrive via
 ## [signal notification_action_invoked].
@@ -377,6 +385,7 @@ func remove_notification(id: String) -> bool:
 
 
 # --- Internals ----------------------------------------------------------------
+
 
 ## Selects the default backend on first use. The facade is usable before
 ## [method _ready] runs — an autoload may be reached from another autoload's
