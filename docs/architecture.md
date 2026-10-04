@@ -85,7 +85,10 @@ away must not take the game down.
 ### Threading
 
 The connection is created while a private `GMainContext` is thread-default, and
-one worker thread runs a `GMainLoop` on that context. That is where every
+one worker thread runs a `GMainLoop` on that context. Connecting is asynchronous
+and bounded by `CONNECT_TIMEOUT_MS`: a session bus that accepts the socket and
+then never answers makes the backend unavailable after five seconds instead of
+hanging the game. That is where every
 incoming D-Bus message is dispatched. Results reach Godot through
 `call_deferred("emit_signal", …)`, so script code only ever sees signals on the
 main thread.
@@ -113,28 +116,52 @@ regression test that keeps them honest.
 ### Synchronous versus interactive calls
 
 Only **non-interactive** calls are synchronous, and each has a bounded 2-second
-timeout (`SYNC_CALL_TIMEOUT_MS`): interface version reads, the power-saver
-property, GameMode's three methods, `SchemeSupported`, the two Notification
-methods, and `Request.Close`. None of them show UI, so none of them can block on
-a human. `g_dbus_connection_call_sync()` drives its own temporary context, so
-these do not depend on the worker loop at all.
+timeout (`SYNC_CALL_TIMEOUT_MS`): GameMode's three methods, `SchemeSupported`,
+the two Notification methods, and `Request.Close`. None of them show UI, so none
+of them can block on a human. `g_dbus_connection_call_sync()` drives its own
+temporary context, so these do not depend on the worker loop at all.
+
+Property reads (interface versions and the power-saver state) are issued
+together, asynchronously on the worker, and waited for under a single
+`SYNC_CALL_TIMEOUT_MS`, so a slow portal costs startup one timeout rather than
+one per read. Versions are cached per portal instance.
 
 **Interactive** calls — `Inhibit` and `OpenURI` — are never synchronous. They
 follow the portal request pattern:
 
 1. Generate a `handle_token` and derive the request object path from the
    connection's own unique bus name
-   (`/org/freedesktop/portal/desktop/request/<escaped unique name>/<token>`).
-2. Subscribe to `org.freedesktop.portal.Request::Response` on that path **before**
-   issuing the call, as the portal specification requires — otherwise a fast
-   portal can answer before the subscription exists.
-3. Issue the call asynchronously and return the handle immediately.
-4. When the reply arrives, if the portal chose a different handle than predicted,
-   move the subscription to the real one.
-5. On `Response`, unsubscribe and emit `request_completed`.
+   (`/org/freedesktop/portal/desktop/request/<escaped unique name>/<token>`),
+   and record it as the request's path.
+2. Issue the call asynchronously and return the handle immediately.
+3. When the reply arrives, if the portal chose a different path than predicted,
+   record the real path, then drop the predicted one.
+4. On `Response`, look the path up and emit `request_completed` for the
+   caller's handle.
 
-If the call itself fails, the request is completed locally with
-`Response.OTHER`, so a caller awaiting a handle is never stranded.
+One subscription, made when the worker starts, receives every
+`org.freedesktop.portal.Request::Response` from the portal, whatever its path.
+Subscribing per path, before each call, is what the specification suggests, but
+it cannot work for a portal that answers on a path other than the predicted
+one: the client learns that path from the reply, and a match rule added then
+can be overtaken by a `Response` sent straight after the reply. A `Response`
+that arrives before the reply naming its path is held, briefly and boundedly,
+until the reply claims it.
+
+A request always completes. If the call itself fails, or the portal's name
+loses its owner or changes owner before the `Response`, the request is
+completed locally with `Response.OTHER`, so a caller awaiting a handle is never
+stranded.
+
+### Portal lifecycle
+
+The worker subscribes to `PropertiesChanged` and `ActionInvoked`
+unconditionally, and watches the portal's bus name. The subscriptions name the
+portal's well-known name as their sender, so GLib follows whichever process owns
+it: a portal that was slow or absent at startup, or that restarts, is still
+heard. When the name's owner goes away or changes, pending requests are failed
+as above, the cached interface versions are dropped, and the power-saver state
+is marked unknown and re-read from the new owner.
 
 ### Type conversion
 
@@ -146,10 +173,13 @@ D-Bus invocation" a structural property rather than a policy.
 
 ### Shutdown
 
-`teardown()` cancels the shared `GCancellable`, unsubscribes everything, quits
-the loop, joins the worker, then closes and unrefs the connection — in that
-order. Because callbacks only run on the worker and the worker is joined before
-any member is released, no callback can observe a half-destroyed object.
+`teardown()` cancels the shared `GCancellable` and quits the loop. The worker
+then unsubscribes everything, closes the connection, and drains its context, so
+every cancelled call's reply is delivered and frees its payload, and every
+queued task that never ran releases what it captured. Only then is the worker
+joined and anything released. Because callbacks only run on the worker and the
+worker is joined before any member is released, no callback can observe a
+half-destroyed object.
 
 ## Debugging
 

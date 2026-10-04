@@ -22,8 +22,9 @@ namespace xdg_portals {
 // Nothing like the GIO backend's worker loop is needed. The notification is
 // delivered on an NSOperationQueue this class owns, and the observer block
 // hands the result to Godot with call_deferred(), so script code only ever sees
-// the signal on the main thread. The observer is registered lazily on the first
-// read and removed in the destructor.
+// the signal on the main thread. The observer is registered at construction,
+// so a caller that only listens for changes still gets them, and removed in the
+// destructor.
 //
 // The class deliberately holds no Objective-C types in this header: it is
 // included from register_types.cpp, which is plain C++.

@@ -33,7 +33,10 @@ Use it for diagnostics, and for gating on a portal member that needs a minimum
 version — `SchemeSupported` is the only such case here.
 
 Capability discovery runs once at backend selection. Call
-`refresh_capabilities()` if the portal service is restarted mid-session.
+`refresh_capabilities()` if the portal service is restarted mid-session. The
+native backend reads every interface version in parallel at startup and caches
+them for as long as the same portal instance runs, so a refresh after a restart
+reads them again and one without a restart costs no bus traffic.
 
 ## GameMode
 
@@ -45,10 +48,23 @@ func release_game_mode(pid: int = 0) -> bool
 
 `pid` defaults to `0`, meaning the current process (`OS.get_process_id()`).
 
-`query_game_mode()` returns `GameModeStatus.UNKNOWN` when the status could not be
-determined, including when the portal answers with a code this addon does not
-recognise. `request_game_mode()` and `release_game_mode()` return `true` only for
-the portal's documented success code (`0`).
+`query_game_mode()` answers with:
+
+| `GameModeStatus` | Meaning | Portal `QueryStatus` code |
+| --- | --- | --- |
+| `NOT_REGISTERED` | GameMode is inactive. | `0` |
+| `ACTIVE_FOR_OTHERS` | GameMode is active for another process; this one is not registered. | `1` |
+| `REGISTERED` | GameMode is active and this process is registered. | `2` |
+| `UNKNOWN` | The query failed, or the portal answered with a code this addon does not recognise. | `-1`, or anything else |
+
+The enum's values are the addon's own, not the portal's codes: compare against
+the names. `REJECTED` (`2`) is deprecated and never returned — GameMode has no
+such state; earlier versions misread the portal's `2` as it.
+
+`request_game_mode()` and `release_game_mode()` return `true` only for the
+portal's documented success code (`0`). A registration still held when the
+`DesktopServices` node leaves the tree, or when `set_backend()` replaces the
+backend, is released then.
 
 These three calls are synchronous with a 2-second timeout — they are
 non-interactive and show no UI.
@@ -146,7 +162,9 @@ rejected locally. Priorities map to the portal's string names: `"low"`,
 `"normal"`, `"high"`, `"urgent"`.
 
 `notification_action_invoked` forwards the portal's `ActionInvoked` signal.
-`parameters` holds the D-Bus payload converted to Godot values.
+`parameters` holds the D-Bus payload converted to Godot values: byte arrays
+(`ay`) become `PackedByteArray`, and dictionaries keep their keys whatever their
+type (`a{us}` becomes a `Dictionary` keyed by `int`).
 
 ## Signals
 
@@ -158,15 +176,20 @@ rejected locally. Priorities map to the portal's string names: `"low"`,
 | `notification_action_invoked` | `id: String, action: String, parameters: Array` | The user activates a notification action. |
 | `portal_error` | `context: String, message: String` | A call fails or is rejected. `context` names the D-Bus member, e.g. `"OpenURI.OpenURI"`. |
 
-If an interactive call fails outright, the addon still emits `request_completed`
-for its handle with `Response.OTHER`, so a caller waiting on a handle is never
-stranded.
+If an interactive call fails outright, or the portal service exits or is
+replaced before answering, the addon still emits `request_completed` for its
+handle with `Response.OTHER` (and a `portal_error` saying why), so a caller
+waiting on a handle is never stranded.
 
 ## Enums
 
 ```gdscript
 enum InhibitFlags { LOGOUT = 1, USER_SWITCH = 2, SUSPEND = 4, IDLE = 8 }
-enum GameModeStatus { UNKNOWN = -1, NOT_REGISTERED = 0, REGISTERED = 1, REJECTED = 2 }
+enum GameModeStatus {
+    UNKNOWN = -1, NOT_REGISTERED = 0, REGISTERED = 1,
+    REJECTED = 2,           # deprecated, never returned
+    ACTIVE_FOR_OTHERS = 3,
+}
 enum Response { SUCCESS = 0, CANCELLED = 1, OTHER = 2 }
 enum NotificationPriority { LOW = 0, NORMAL = 1, HIGH = 2, URGENT = 3 }
 enum Capability { GAME_MODE, INHIBIT, POWER_PROFILE_MONITOR, OPEN_URI, NOTIFICATION }

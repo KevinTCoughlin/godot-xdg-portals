@@ -5,6 +5,7 @@
 #include "gvariant_conv.h"
 
 #include <godot_cpp/variant/array.hpp>
+#include <godot_cpp/variant/packed_byte_array.hpp>
 #include <godot_cpp/variant/string.hpp>
 
 #include <cstdint>
@@ -15,16 +16,24 @@ namespace xdg_portals {
 
 namespace {
 
-bool is_string_keyed_dict(GVariant *p_variant) {
-	const GVariantType *type = g_variant_get_type(p_variant);
-	if (!g_variant_type_is_subtype_of(type, G_VARIANT_TYPE("a{?*}"))) {
-		return false;
+bool is_dict(GVariant *p_variant) {
+	return g_variant_is_of_type(p_variant, G_VARIANT_TYPE_DICTIONARY);
+}
+
+PackedByteArray bytes_to_packed(GVariant *p_variant) {
+	PackedByteArray bytes;
+	gsize count = 0;
+	const auto *data = static_cast<const uint8_t *>(
+			g_variant_get_fixed_array(p_variant, &count, sizeof(guint8)));
+	if (data == nullptr || count == 0) {
+		return bytes;
 	}
-	const GVariantType *entry = g_variant_type_element(type);
-	const GVariantType *key = g_variant_type_key(entry);
-	return g_variant_type_equal(key, G_VARIANT_TYPE_STRING) ||
-			g_variant_type_equal(key, G_VARIANT_TYPE_OBJECT_PATH) ||
-			g_variant_type_equal(key, G_VARIANT_TYPE_SIGNATURE);
+	bytes.resize(static_cast<int64_t>(count));
+	uint8_t *out = bytes.ptrw();
+	for (gsize i = 0; i < count; i++) {
+		out[i] = data[i];
+	}
+	return bytes;
 }
 
 } // namespace
@@ -85,11 +94,17 @@ Variant gvariant_to_variant(GVariant *p_variant) {
 			return result;
 		}
 		case G_VARIANT_CLASS_ARRAY:
-			if (is_string_keyed_dict(p_variant)) {
+			if (is_dict(p_variant)) {
 				return Variant(gvariant_dict_to_dictionary(p_variant));
 			}
+			// Binary payloads (`ay`) are bytes, not a list of small integers.
+			if (g_variant_is_of_type(p_variant, G_VARIANT_TYPE_BYTESTRING)) {
+				return Variant(bytes_to_packed(p_variant));
+			}
 			[[fallthrough]];
-		case G_VARIANT_CLASS_TUPLE: {
+		case G_VARIANT_CLASS_TUPLE:
+		// A lone dict entry, outside an array, is a key/value pair.
+		case G_VARIANT_CLASS_DICT_ENTRY: {
 			Array array;
 			const gsize count = g_variant_n_children(p_variant);
 			for (gsize i = 0; i < count; i++) {
@@ -107,7 +122,7 @@ Variant gvariant_to_variant(GVariant *p_variant) {
 // NOLINTNEXTLINE(misc-no-recursion): bounded as above.
 Dictionary gvariant_dict_to_dictionary(GVariant *p_variant) {
 	Dictionary dictionary;
-	if (p_variant == nullptr || !is_string_keyed_dict(p_variant)) {
+	if (p_variant == nullptr || !is_dict(p_variant)) {
 		return dictionary;
 	}
 
@@ -117,7 +132,9 @@ Dictionary gvariant_dict_to_dictionary(GVariant *p_variant) {
 	while ((entry = g_variant_iter_next_value(&iter)) != nullptr) {
 		GVariant *key = g_variant_get_child_value(entry, 0);
 		GVariant *value = g_variant_get_child_value(entry, 1);
-		dictionary[String::utf8(g_variant_get_string(key, nullptr))] = gvariant_to_variant(value);
+		// Keys are basic types, so this is a String or an int (or a bool, or a
+		// float) — never a container.
+		dictionary[gvariant_to_variant(key)] = gvariant_to_variant(value);
 		g_variant_unref(key);
 		g_variant_unref(value);
 		g_variant_unref(entry);

@@ -15,6 +15,22 @@
 # Requirements: gcc, pkg-config, libglib2.0-dev, dbus-daemon, and an editor-target
 # build of the extension (scripts/build.sh --target editor).
 #
+# The test runs once per mode, each on a fresh bus with the fake portal started
+# with that mode's options. --mode NAME (repeatable) runs only those modes.
+#
+#   default      The full check against a well-behaved portal.
+#   immediate    The full check with Request::Response sent the instant the
+#                method returns, and GameMode already active for another game.
+#   slow-start   The portal stalls its first property read past the client's
+#                timeout; change notifications must still arrive.
+#   restart      The portal exits with an OpenURI request pending and is
+#                started again; the request must complete, and the client must
+#                follow the new instance.
+#   wedged-bus   The extension is pointed at a socket that accepts connections
+#                and never answers; connecting must give up in bounded time.
+#                Godot itself keeps the real session bus: it talks D-Bus too,
+#                without a timeout, and would hang first.
+#
 # --sanitize runs the same test against a library built with
 # `scripts/build.sh --target editor --sanitize` (AddressSanitizer + UBSan).
 # Godot itself is not instrumented, so the ASan runtime the library links is
@@ -30,14 +46,27 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 WORK_DIR="$(mktemp -d)"
 trap 'rm -rf "$WORK_DIR"' EXIT
 
+ALL_MODES=(default immediate slow-start restart wedged-bus)
+MODES=()
 SANITIZE=0
 while [[ $# -gt 0 ]]; do
 	case "$1" in
 		--sanitize) SANITIZE=1; shift ;;
-		-h|--help) sed -n '6,25p' "${BASH_SOURCE[0]}" | cut -c3-; exit 0 ;;
+		--mode)
+			if [[ $# -lt 2 || " ${ALL_MODES[*]} " != *" $2 "* ]]; then
+				echo "--mode takes one of: ${ALL_MODES[*]}" >&2
+				exit 2
+			fi
+			MODES+=("$2")
+			shift 2
+			;;
+		-h|--help) sed -n '6,40p' "${BASH_SOURCE[0]}" | cut -c3-; exit 0 ;;
 		*) echo "Unknown option: $1" >&2; exit 2 ;;
 	esac
 done
+if [[ ${#MODES[@]} -eq 0 ]]; then
+	MODES=("${ALL_MODES[@]}")
+fi
 
 GODOT_BIN="${GODOT:-}"
 if [[ -z "$GODOT_BIN" ]]; then
@@ -140,32 +169,104 @@ cc -std=c11 -Wall -Wextra -O1 -o "$WORK_DIR/fake-portal" \
 
 export WORK_DIR REPO_ROOT GODOT_BIN
 
-# The single quotes are deliberate: the inner bash expands the exported
-# variables itself.
-# shellcheck disable=SC2016
-dbus-run-session -- bash -euo pipefail -c '
-	"$WORK_DIR/fake-portal" > "$WORK_DIR/portal.log" 2>&1 &
-	portal_pid=$!
-	trap "kill $portal_pid 2>/dev/null || true" EXIT
+# Every pass is bounded from outside as well as by the test's own watchdog: a
+# client that blocks Godot's main thread never lets the watchdog fire.
+PASS_TIMEOUT_SECONDS=60
 
-	# Wait for the fixture to own the portal name before starting the client.
+run_client() {
+	local mode="$1"
+	XDG_PORTALS_SMOKE_MODE="$mode" timeout --kill-after=5 "$PASS_TIMEOUT_SECONDS" \
+		"$GODOT_BIN" --headless --path "$REPO_ROOT" --script res://tests/native/native_smoke.gd
+}
+
+# Runs inside dbus-run-session: starts the fake portal with the mode's options,
+# waits for it to own the portal name, then runs the client.
+run_session_pass() {
+	local mode="$1" log="$WORK_DIR/portal-$1.log"
+	local -a options=()
+	case "$mode" in
+		immediate) options=(--response-delay 0 --gamemode-other-active) ;;
+		slow-start) options=(--first-get-delay 2500) ;;
+		restart) options=(--exit-after-open-uri) ;;
+	esac
+
+	if [[ "$mode" == "restart" ]]; then
+		# The first instance exits on its own mid-request; a well-behaved one
+		# takes its place, as a session manager would restart the service.
+		(
+			"$WORK_DIR/fake-portal" "${options[@]}"
+			echo "fake-portal: restarting"
+			exec "$WORK_DIR/fake-portal"
+		) > "$log" 2>&1 &
+	else
+		"$WORK_DIR/fake-portal" "${options[@]}" > "$log" 2>&1 &
+	fi
+	portal_pid=$!
+	# Global, not local: the EXIT trap runs after this function has returned.
+	# Ending the session takes the bus down, and the fixture with it.
+	trap 'kill "$portal_pid" 2>/dev/null || true' EXIT
+
 	for _ in $(seq 1 100); do
-		if grep -q "ready as" "$WORK_DIR/portal.log" 2>/dev/null; then
+		if grep -q "ready as" "$log" 2>/dev/null; then
 			break
 		fi
-		if ! kill -0 $portal_pid 2>/dev/null; then
+		if ! kill -0 "$portal_pid" 2>/dev/null; then
 			echo "The fake portal exited early:" >&2
-			cat "$WORK_DIR/portal.log" >&2
-			exit 1
+			cat "$log" >&2
+			return 1
 		fi
 		sleep 0.1
 	done
 
-	if ! grep -q "ready as" "$WORK_DIR/portal.log"; then
-		echo "The fake portal never acquired org.freedesktop.portal.Desktop." >&2
-		cat "$WORK_DIR/portal.log" >&2
-		exit 1
+	if ! grep -q "ready as" "$log"; then
+		echo "The fake portal never became ready." >&2
+		cat "$log" >&2
+		return 1
 	fi
 
-	"$GODOT_BIN" --headless --path "$REPO_ROOT" --script res://tests/native/native_smoke.gd
-'
+	if [[ "$mode" == "wedged-bus" ]]; then
+		# A second fixture, as the socket that never answers. The ordinary one
+		# keeps owning the portal name, or Godot's own D-Bus traffic would
+		# activate whatever real portal service is installed.
+		local socket="$WORK_DIR/wedged-bus.sock"
+		"$WORK_DIR/fake-portal" --wedged-bus "$socket" >> "$log" 2>&1 &
+		wedged_pid=$!
+		trap 'kill "$portal_pid" "$wedged_pid" 2>/dev/null || true' EXIT
+		for _ in $(seq 1 100); do
+			if [[ -S "$socket" ]]; then
+				break
+			fi
+			sleep 0.1
+		done
+		# Read by native_smoke.gd, which points only the extension at it.
+		XDG_PORTALS_SMOKE_WEDGED_BUS="unix:path=$socket" run_client "$mode"
+	else
+		run_client "$mode"
+	fi
+}
+export -f run_client run_session_pass
+export PASS_TIMEOUT_SECONDS
+
+failed_modes=()
+for mode in "${MODES[@]}"; do
+	echo
+	echo "==> native smoke: $mode"
+	status=0
+	# The single quotes are deliberate: "$1" is the inner shell's argument.
+	# shellcheck disable=SC2016
+	dbus-run-session -- bash -euo pipefail -c 'run_session_pass "$1"' _ "$mode" || status=$?
+	if [[ "$status" -ne 0 ]]; then
+		failed_modes+=("$mode")
+		if [[ -f "$WORK_DIR/portal-$mode.log" ]]; then
+			echo "--- fake portal log ($mode) ---"
+			cat "$WORK_DIR/portal-$mode.log"
+		fi
+	fi
+done
+
+echo
+if [[ ${#failed_modes[@]} -gt 0 ]]; then
+	echo "native smoke: failed in ${failed_modes[*]}"
+	exit 1
+fi
+echo "native smoke: every mode passed (${MODES[*]})"

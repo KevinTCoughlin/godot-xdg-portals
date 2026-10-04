@@ -17,6 +17,13 @@ extends DesktopServicesBackend
 ## constructed directly by the test suite, where no autoload exists.
 const _FACADE := preload("res://addons/xdg_portals/desktop_services.gd")
 
+## org.freedesktop.portal.GameMode.QueryStatus results, as the interface
+## documents them. -1 (the query failed) is not listed: it is unknown, as is
+## anything else.
+const PORTAL_GAME_MODE_INACTIVE := 0
+const PORTAL_GAME_MODE_ACTIVE := 1
+const PORTAL_GAME_MODE_REGISTERED := 2
+
 var _native: RefCounted = null
 var _versions: Dictionary = {}
 
@@ -83,10 +90,28 @@ func get_interface_version(capability: int) -> int:
 	return int(_versions.get(interface_name, -1))
 
 
+## Translates the portal's [code]QueryStatus[/code] code into a
+## [code]GameModeStatus[/code]. The two number the states differently — the
+## portal's 1 means "active, but not for this pid" and its 2 means "registered"
+## — so passing the code through unchanged reports the opposite of the truth.
 func game_mode_query_status(pid: int) -> int:
 	if _native == null:
-		return -1
-	return int(_native.call("game_mode_query_status", pid))
+		return _FACADE.GameModeStatus.UNKNOWN
+	return game_mode_status_from_portal(int(_native.call("game_mode_query_status", pid)))
+
+
+## The [code]GameModeStatus[/code] for a portal [code]QueryStatus[/code] code.
+## Anything outside the documented codes is unknown, never a guess.
+static func game_mode_status_from_portal(code: int) -> int:
+	match code:
+		PORTAL_GAME_MODE_INACTIVE:
+			return _FACADE.GameModeStatus.NOT_REGISTERED
+		PORTAL_GAME_MODE_ACTIVE:
+			return _FACADE.GameModeStatus.ACTIVE_FOR_OTHERS
+		PORTAL_GAME_MODE_REGISTERED:
+			return _FACADE.GameModeStatus.REGISTERED
+		_:
+			return _FACADE.GameModeStatus.UNKNOWN
 
 
 func game_mode_register(pid: int) -> int:

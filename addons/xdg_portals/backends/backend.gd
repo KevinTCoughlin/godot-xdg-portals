@@ -55,7 +55,9 @@ func get_interface_version(_capability: int) -> int:
 	return -1
 
 
-## Returns an [code]DesktopServices.GameModeStatus[/code] value.
+## Returns a [code]DesktopServices.GameModeStatus[/code] value. A portal-backed
+## implementation translates the portal's own codes, which are numbered
+## differently; see [method DesktopServicesNativeBackend.game_mode_status_from_portal].
 func game_mode_query_status(_pid: int) -> int:
 	return -1
 

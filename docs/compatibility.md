@@ -61,7 +61,7 @@ implemented by a desktop-specific backend, so availability varies:
 
 | Interface | GNOME | KDE Plasma | wlroots (sway, Hyprland) | Notes |
 | --- | --- | --- | --- | --- |
-| `GameMode` | yes | yes | yes | Provided by `xdg-desktop-portal` itself, forwarding to host `gamemoded`. Returns "rejected" if `gamemoded` is not installed. |
+| `GameMode` | yes | yes | yes | Provided by `xdg-desktop-portal` itself, forwarding to host `gamemoded`. Without `gamemoded`, `request_game_mode()` fails and `query_game_mode()` reports unknown. |
 | `Inhibit` | yes | yes | partial | wlroots backends implement idle inhibition; logout and user-switch bits may be ignored. |
 | `PowerProfileMonitor` | yes | yes | yes | Backed by `power-profiles-daemon` or `tuned`; reports unknown when neither runs. |
 | `OpenURI` | yes | yes | yes | `SchemeSupported` needs `xdg-desktop-portal` 1.16+. |
@@ -70,7 +70,9 @@ implemented by a desktop-specific backend, so availability varies:
 This table reflects the interfaces the addon uses, not the full portal surface.
 Because everything is discovered at runtime, a desktop that gains or loses an
 implementation needs no change here — call `refresh_capabilities()` after a
-portal restart.
+portal restart. The native backend notices a restart by itself: requests the old
+instance never answered complete with `Response.OTHER`, its signal
+subscriptions follow the new instance, and the power-saver state is re-read.
 
 ## Flatpak
 

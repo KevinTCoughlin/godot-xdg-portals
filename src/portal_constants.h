@@ -22,13 +22,18 @@ inline constexpr const char *IFACE_NOTIFICATION = "org.freedesktop.portal.Notifi
 
 inline constexpr const char *PROP_POWER_SAVER_ENABLED = "power-saver-enabled";
 
-// Every non-interactive call is issued synchronously with this bounded timeout
-// so a wedged portal service can never stall a game frame indefinitely.
+// Every non-interactive call is bounded by this timeout so a wedged portal
+// service can never stall a game frame indefinitely.
 inline constexpr int SYNC_CALL_TIMEOUT_MS = 2000;
 
-// Bus connection setup is allowed slightly longer: on a cold Flatpak start the
-// portal service may still be activating.
-inline constexpr int CONNECT_TIMEOUT_MS = 5000;
+// Connecting to the session bus (authentication and Hello) is allowed longer:
+// on a cold login the bus may be busy activating services. connect_bus()
+// connects asynchronously and gives up after this long.
+inline constexpr unsigned int CONNECT_TIMEOUT_MS = 5000;
+
+// After giving up, how long connect_bus() waits for the cancelled attempt to
+// report back before abandoning it.
+inline constexpr unsigned int CONNECT_CANCEL_GRACE_MS = 250;
 
 // org.freedesktop.portal.OpenURI.SchemeSupported was added in interface
 // version 5.

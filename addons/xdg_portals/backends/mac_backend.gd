@@ -41,6 +41,11 @@ static func create() -> DesktopServicesMacBackend:
 func _bind(native: RefCounted) -> void:
 	_native = native
 	_native.connect("power_saver_changed", _on_power_saver_changed)
+	# The extension starts observing when it is constructed. Reading once here
+	# also starts it in a library built before that, which only began
+	# observing on the first read — and a game that only connects
+	# power_saver_changed never reads.
+	_native.call("power_saver_state")
 
 
 func get_backend_name() -> String:

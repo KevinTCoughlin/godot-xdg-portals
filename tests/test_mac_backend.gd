@@ -21,8 +21,10 @@ class FakeMonitor:
 	signal power_saver_changed(enabled: bool)
 
 	var state: int = 0
+	var reads: int = 0
 
 	func power_saver_state() -> int:
+		reads += 1
 		return state
 
 	func emit_change(enabled: bool) -> void:
@@ -98,3 +100,12 @@ func test_backend_name_and_availability() -> void:
 	backend.shutdown()
 	assert_false(backend.is_available(), "a shut-down backend reports unavailable")
 	assert_eq(backend.power_saver_state(), -1, "and stops claiming to know the state")
+
+
+func test_binding_starts_observation_without_a_read() -> void:
+	# A game that only connects power_saver_changed never reads the state. The
+	# extension starts observing at construction; binding also reads once, so
+	# an older library that started observing on the first read is covered too.
+	var fake := FakeMonitor.new()
+	_bound_backend(fake)
+	assert_true(fake.reads >= 1, "binding touches the monitor, which starts its observer")

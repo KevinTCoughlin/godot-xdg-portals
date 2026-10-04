@@ -12,9 +12,31 @@
 //
 // It is a test fixture, not a portal implementation: it is never installed and
 // never shipped in a release archive.
+//
+// Options select the misbehaviour a smoke pass needs (see
+// scripts/run_native_smoke.sh, which runs one pass per mode):
+//
+//   --response-delay MS      Delay before Request::Response (default 50). 0
+//                            sends it straight after the method reply, which
+//                            is what exposes a client that subscribes late.
+//   --gamemode-other-active  QueryStatus reports GameMode active (1) for a pid
+//                            that has not registered, as when another game
+//                            holds it.
+//   --first-get-delay MS     Stall the whole service for MS before answering
+//                            the first property read, like a portal still
+//                            starting up.
+//   --exit-after-open-uri    Answer OpenURI, then exit without ever sending its
+//                            Response, like a portal that crashed mid-request.
+//   --wedged-bus PATH        Do not act as a portal at all: listen on the unix
+//                            socket PATH and never answer, like a session bus
+//                            that accepts connections and then hangs.
 
 #include <gio/gio.h>
 #include <stdio.h>
+#include <string.h>
+#include <sys/socket.h>
+#include <sys/un.h>
+#include <unistd.h>
 
 #define PORTAL_PATH "/org/freedesktop/portal/desktop"
 
@@ -94,6 +116,17 @@ static GDBusNodeInfo *introspection = NULL;
 static gboolean power_saver_enabled = TRUE;
 static const GDBusInterfaceVTable VTABLE;
 
+// Options; see the header comment.
+static guint response_delay_ms = 50;
+static gboolean gamemode_other_active = FALSE;
+static guint first_get_delay_ms = 0;
+static gboolean exit_after_open_uri = FALSE;
+
+// Pids registered through RegisterGame, so QueryStatus answers from state
+// rather than a constant: 0 inactive, 1 active for others, 2 active and
+// registered by this pid, as org.freedesktop.portal.GameMode specifies.
+static GHashTable *registered_pids = NULL;
+
 typedef struct {
 	gchar *handle;
 	gchar *sender;
@@ -130,6 +163,18 @@ static gboolean emit_action_invoked(gpointer data) {
 	GVariantBuilder parameters;
 	g_variant_builder_init(&parameters, G_VARIANT_TYPE("av"));
 	g_variant_builder_add(&parameters, "v", g_variant_new_string("slot-3"));
+	if (g_strcmp0(id, "smoke-types") == 0) {
+		// Container types the client must convert faithfully: a byte array and
+		// a dictionary whose keys are not strings.
+		static const guint8 bytes[] = { 1, 2, 255 };
+		g_variant_builder_add(&parameters, "v",
+				g_variant_new_fixed_array(G_VARIANT_TYPE_BYTE, bytes, sizeof(bytes), 1));
+		GVariantBuilder by_number;
+		g_variant_builder_init(&by_number, G_VARIANT_TYPE("a{us}"));
+		g_variant_builder_add(&by_number, "{us}", 1, "one");
+		g_variant_builder_add(&by_number, "{us}", 2, "two");
+		g_variant_builder_add(&parameters, "v", g_variant_builder_end(&by_number));
+	}
 
 	g_dbus_connection_emit_signal(bus, NULL, PORTAL_PATH,
 			"org.freedesktop.portal.Notification", "ActionInvoked",
@@ -177,7 +222,26 @@ static void schedule_response(const gchar *sender, gchar *handle, guint32 respon
 	pending->handle = handle;
 	pending->sender = g_strdup(sender);
 	pending->response = response;
-	g_timeout_add_full(G_PRIORITY_DEFAULT, 50, emit_response, pending, pending_response_free);
+	g_timeout_add_full(G_PRIORITY_DEFAULT, response_delay_ms, emit_response, pending,
+			pending_response_free);
+}
+
+static gboolean quit_loop(gpointer data) {
+	(void)data;
+	printf("fake-portal: exiting with a request still pending\n");
+	fflush(stdout);
+	g_main_loop_quit(loop);
+	return G_SOURCE_REMOVE;
+}
+
+static gint32 game_mode_status_for(gint32 pid) {
+	if (g_hash_table_contains(registered_pids, GINT_TO_POINTER(pid))) {
+		return 2;
+	}
+	if (gamemode_other_active || g_hash_table_size(registered_pids) > 0) {
+		return 1;
+	}
+	return 0;
 }
 
 static void handle_method_call(GDBusConnection *connection, const gchar *sender,
@@ -191,11 +255,18 @@ static void handle_method_call(GDBusConnection *connection, const gchar *sender,
 	fflush(stdout);
 
 	if (g_strcmp0(interface_name, "org.freedesktop.portal.GameMode") == 0) {
+		gint32 pid = 0;
+		g_variant_get(parameters, "(i)", &pid);
 		if (g_strcmp0(method_name, "QueryStatus") == 0) {
-			g_dbus_method_invocation_return_value(invocation, g_variant_new("(i)", 1));
-		} else if (g_strcmp0(method_name, "RegisterGame") == 0 ||
-				g_strcmp0(method_name, "UnregisterGame") == 0) {
+			g_dbus_method_invocation_return_value(invocation,
+					g_variant_new("(i)", game_mode_status_for(pid)));
+		} else if (g_strcmp0(method_name, "RegisterGame") == 0) {
+			g_hash_table_add(registered_pids, GINT_TO_POINTER(pid));
 			g_dbus_method_invocation_return_value(invocation, g_variant_new("(i)", 0));
+		} else if (g_strcmp0(method_name, "UnregisterGame") == 0) {
+			const gboolean was_registered = g_hash_table_remove(registered_pids, GINT_TO_POINTER(pid));
+			g_dbus_method_invocation_return_value(invocation,
+					g_variant_new("(i)", was_registered ? 0 : -1));
 		} else {
 			g_dbus_method_invocation_return_error(invocation, G_DBUS_ERROR,
 					G_DBUS_ERROR_UNKNOWN_METHOD, "Unknown method %s", method_name);
@@ -238,6 +309,13 @@ static void handle_method_call(GDBusConnection *connection, const gchar *sender,
 			gchar *handle = request_path_for(sender, options);
 			g_variant_unref(options);
 			g_dbus_method_invocation_return_value(invocation, g_variant_new("(o)", handle));
+			if (exit_after_open_uri) {
+				// Leave the request pending forever: the reply goes out, the
+				// Response never does. The delay lets the reply be flushed.
+				g_free(handle);
+				g_timeout_add(100, quit_loop, NULL);
+				return;
+			}
 			// Reported as cancelled so the test can tell a real response code
 			// apart from a locally synthesised one.
 			schedule_response(sender, handle, 1);
@@ -277,6 +355,15 @@ static GVariant *handle_get_property(GDBusConnection *connection, const gchar *s
 	(void)sender;
 	(void)object_path;
 	(void)user_data;
+
+	if (first_get_delay_ms > 0) {
+		// Blocking is the point: a portal that is still starting answers
+		// nothing, not just this one read.
+		printf("fake-portal: stalling %u ms before the first property read\n", first_get_delay_ms);
+		fflush(stdout);
+		g_usleep((gulong)first_get_delay_ms * 1000);
+		first_get_delay_ms = 0;
+	}
 
 	if (g_strcmp0(property_name, "power-saver-enabled") == 0) {
 		return g_variant_new_boolean(power_saver_enabled);
@@ -346,7 +433,65 @@ static void on_name_lost(GDBusConnection *connection, const gchar *name, gpointe
 	g_main_loop_quit(loop);
 }
 
-int main(void) {
+// Listens on `path` and never reads or writes, so a client's authentication
+// handshake waits forever. Connections queue in the listen backlog unaccepted.
+static int run_wedged_bus(const char *path) {
+	int fd = socket(AF_UNIX, SOCK_STREAM, 0);
+	if (fd < 0) {
+		perror("fake-portal: socket");
+		return 1;
+	}
+	struct sockaddr_un address;
+	memset(&address, 0, sizeof(address));
+	address.sun_family = AF_UNIX;
+	if (strlen(path) >= sizeof(address.sun_path)) {
+		g_printerr("fake-portal: socket path too long: %s\n", path);
+		close(fd);
+		return 1;
+	}
+	g_strlcpy(address.sun_path, path, sizeof(address.sun_path));
+	unlink(path);
+	if (bind(fd, (struct sockaddr *)&address, sizeof(address)) != 0 || listen(fd, 16) != 0) {
+		perror("fake-portal: bind/listen");
+		close(fd);
+		return 1;
+	}
+	printf("fake-portal: ready as a wedged bus on %s\n", path);
+	fflush(stdout);
+	for (;;) {
+		pause();
+	}
+}
+
+static gboolean parse_uint(const char *text, guint *r_value) {
+	guint64 value = 0;
+	if (!g_ascii_string_to_unsigned(text, 10, 0, G_MAXUINT, &value, NULL)) {
+		return FALSE;
+	}
+	*r_value = (guint)value;
+	return TRUE;
+}
+
+int main(int argc, char **argv) {
+	for (int i = 1; i < argc; i++) {
+		const char *option = argv[i];
+		const char *value = i + 1 < argc ? argv[i + 1] : NULL;
+		if (g_strcmp0(option, "--response-delay") == 0 && value != NULL && parse_uint(value, &response_delay_ms)) {
+			i++;
+		} else if (g_strcmp0(option, "--first-get-delay") == 0 && value != NULL && parse_uint(value, &first_get_delay_ms)) {
+			i++;
+		} else if (g_strcmp0(option, "--gamemode-other-active") == 0) {
+			gamemode_other_active = TRUE;
+		} else if (g_strcmp0(option, "--exit-after-open-uri") == 0) {
+			exit_after_open_uri = TRUE;
+		} else if (g_strcmp0(option, "--wedged-bus") == 0 && value != NULL) {
+			return run_wedged_bus(value);
+		} else {
+			g_printerr("fake-portal: bad option %s\n", option);
+			return 2;
+		}
+	}
+
 	GError *error = NULL;
 	introspection = g_dbus_node_info_new_for_xml(INTROSPECTION_XML, &error);
 	if (introspection == NULL) {
@@ -355,6 +500,7 @@ int main(void) {
 		return 1;
 	}
 
+	registered_pids = g_hash_table_new(g_direct_hash, g_direct_equal);
 	loop = g_main_loop_new(NULL, FALSE);
 	owner_id = g_bus_own_name(G_BUS_TYPE_SESSION, "org.freedesktop.portal.Desktop",
 			G_BUS_NAME_OWNER_FLAGS_NONE, on_bus_acquired, on_name_acquired, on_name_lost,
@@ -365,5 +511,6 @@ int main(void) {
 	g_bus_unown_name(owner_id);
 	g_main_loop_unref(loop);
 	g_dbus_node_info_unref(introspection);
+	g_hash_table_unref(registered_pids);
 	return 0;
 }

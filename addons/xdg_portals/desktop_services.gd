@@ -53,11 +53,20 @@ enum InhibitFlags {
 }
 
 ## Result of [method query_game_mode].
+##
+## The numeric values are this addon's, not the portal's: the portal answers
+## [code]QueryStatus[/code] with 0 (inactive), 1 (active), 2 (active and the
+## process is registered) or -1 (failed), and the backend translates. Compare
+## against the names, never against raw integers.
 enum GameModeStatus {
 	UNKNOWN = -1,  ## The status could not be determined.
-	NOT_REGISTERED = 0,  ## The process is not registered with GameMode.
-	REGISTERED = 1,  ## The process is registered with GameMode.
-	REJECTED = 2,  ## GameMode refused the registration.
+	NOT_REGISTERED = 0,  ## GameMode is inactive; nothing is registered with it.
+	REGISTERED = 1,  ## GameMode is active and the process is registered with it.
+	## Deprecated: never returned. GameMode has no such status; it was a
+	## misreading of the portal's code 2, which means [constant REGISTERED].
+	REJECTED = 2,
+	## GameMode is active for another process, but this one is not registered.
+	ACTIVE_FOR_OTHERS = 3,
 }
 
 ## Response code carried by [signal request_completed].
@@ -112,6 +121,9 @@ const _PRIORITY_NAMES: PackedStringArray = ["low", "normal", "high", "urgent"]
 var _backend: DesktopServicesBackend = null
 var _capabilities: Dictionary = {}
 var _interface_versions: Dictionary = {}
+## Pids registered by [method request_game_mode] and not yet released, so
+## leaving the tree or swapping backends can release them.
+var _game_mode_pids: Dictionary = {}
 
 
 func _ready() -> void:
@@ -123,6 +135,7 @@ func _ready() -> void:
 
 func _exit_tree() -> void:
 	if _backend != null:
+		_release_held_game_mode(_backend)
 		_backend.shutdown()
 
 
@@ -139,6 +152,9 @@ func set_backend(backend: DesktopServicesBackend) -> void:
 		return
 
 	if _backend != null:
+		# A registration belongs to the backend that made it; the next one
+		# cannot release it.
+		_release_held_game_mode(_backend)
 		_disconnect_backend(_backend)
 		_backend.shutdown()
 
@@ -222,32 +238,48 @@ func get_interface_version(capability: Capability) -> int:
 
 
 ## Queries whether [param pid] is registered with GameMode. [code]0[/code] means
-## the current process. Returns [constant GameModeStatus.UNKNOWN] when the status
-## could not be determined.
+## the current process. Returns [constant GameModeStatus.REGISTERED] only when
+## GameMode is active [i]and[/i] [param pid] is registered;
+## [constant GameModeStatus.ACTIVE_FOR_OTHERS] when another process holds it;
+## [constant GameModeStatus.UNKNOWN] when the status could not be determined.
 func query_game_mode(pid: int = 0) -> GameModeStatus:
 	if not has_capability(Capability.GAME_MODE):
 		return GameModeStatus.UNKNOWN
 	var status: int = _backend.game_mode_query_status(_resolve_pid(pid))
 	match status:
-		GameModeStatus.NOT_REGISTERED, GameModeStatus.REGISTERED, GameModeStatus.REJECTED:
+		GameModeStatus.NOT_REGISTERED, GameModeStatus.REGISTERED:
+			return status as GameModeStatus
+		GameModeStatus.ACTIVE_FOR_OTHERS:
 			return status as GameModeStatus
 		_:
+			# Includes REJECTED, which no backend reports.
 			return GameModeStatus.UNKNOWN
 
 
 ## Asks GameMode to apply its optimisations to [param pid] ([code]0[/code] for the
 ## current process). Returns [code]false[/code] when the request did not succeed.
+##
+## A registration still held when this node leaves the tree, or when
+## [method set_backend] replaces the backend, is released then.
 func request_game_mode(pid: int = 0) -> bool:
 	if not has_capability(Capability.GAME_MODE):
 		return false
-	return _backend.game_mode_register(_resolve_pid(pid)) == 0
+	var resolved: int = _resolve_pid(pid)
+	if _backend.game_mode_register(resolved) != 0:
+		return false
+	_game_mode_pids[resolved] = true
+	return true
 
 
 ## Releases a registration made with [method request_game_mode].
 func release_game_mode(pid: int = 0) -> bool:
 	if not has_capability(Capability.GAME_MODE):
 		return false
-	return _backend.game_mode_unregister(_resolve_pid(pid)) == 0
+	var resolved: int = _resolve_pid(pid)
+	if _backend.game_mode_unregister(resolved) != 0:
+		return false
+	_game_mode_pids.erase(resolved)
+	return true
 
 
 # --- org.freedesktop.portal.Inhibit ------------------------------------------
@@ -432,6 +464,14 @@ func _create_default_backend() -> DesktopServicesBackend:
 
 
 # gdlint: enable=max-returns
+
+
+## Releases every GameMode registration still held through [param backend].
+## Best effort: there is nobody left to report a failure to.
+func _release_held_game_mode(backend: DesktopServicesBackend) -> void:
+	for pid: int in _game_mode_pids.keys():
+		backend.game_mode_unregister(pid)
+	_game_mode_pids.clear()
 
 
 func _connect_backend(backend: DesktopServicesBackend) -> void:
