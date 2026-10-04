@@ -17,8 +17,8 @@ SPDX-License-Identifier: MIT
 - [ ] `./scripts/run_tests.sh` (mock-backed suite)
 - [ ] `./scripts/build.sh --target template_release`
 - [ ] `./scripts/run_native_smoke.sh` (native backend vs. the fake portal)
-- [ ] `bash -n scripts/*.sh`
-- [ ] `reuse lint`
+- [ ] `./scripts/check.sh lint` (formatting, clang-tidy, gdlint, shellcheck, REUSE)
+- [ ] `./scripts/run_native_smoke.sh --sanitize`, if `src/` changed (see `docs/native-testing.md`)
 
 ### Desktop checks
 
