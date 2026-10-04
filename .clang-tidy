@@ -1,0 +1,64 @@
+# SPDX-FileCopyrightText: 2026 Kevin Coughlin
+#
+# SPDX-License-Identifier: MIT
+#
+# Runs against the compile_commands.json that an editor-target build exports
+# (build-editor/compile_commands.json); see scripts/check.sh. Linux only:
+# mac_power_monitor.mm is Objective-C++, built only on macOS, and not analysed.
+#
+# Every check that is switched off below is listed with the reason it does
+# not fit a GDExtension built on GLib. Prefer fixing a finding, or a NOLINT
+# with a reason at the one site, over growing this list.
+Checks: >
+  -*,
+  bugprone-*,
+  cert-*,
+  clang-analyzer-*,
+  concurrency-*,
+  misc-*,
+  performance-*,
+  portability-*,
+  readability-*,
+  modernize-*,
+  -modernize-use-trailing-return-type,
+  -readability-identifier-length,
+  -readability-magic-numbers,
+  -readability-implicit-bool-conversion,
+  -modernize-return-braced-init-list
+
+# Why each one is off:
+#
+# modernize-use-trailing-return-type
+#     Pure style. Godot and godot-cpp never write `auto f() -> T`.
+# readability-identifier-length
+#     `i`, `c` and `id` are idiomatic loop, character and identifier names, and
+#     Godot's `p_`/`r_` prefixes already carry what a longer name would.
+# readability-magic-numbers
+#     The literals are D-Bus wire values (portal response codes, interface
+#     versions such as OpenURI v5, the PowerProfileMonitor tri-state) that are
+#     documented against the portal spec where they are used.
+# readability-implicit-bool-conversion
+#     gboolean is a typedef for int. Every GLib predicate returns it, and the
+#     check wants `g_variant_type_equal(...) != FALSE` at each call, which reads
+#     worse and guards against nothing: GLib's TRUE is 1 and FALSE is 0.
+# modernize-return-braced-init-list
+#     Godot's convention is `return String();` / `return Variant();`, which
+#     names the value the caller gets; `return {};` hides it in exactly the
+#     functions whose empty return is part of the "honest returns" contract.
+
+WarningsAsErrors: '*'
+
+# Only the extension's own headers. godot-cpp (fetched under build-*/_deps), its
+# generated bindings and GLib are third-party code.
+HeaderFilterRegex: '.*/src/.*'
+ExcludeHeaderFilterRegex: '.*/_deps/.*'
+
+# godot-cpp adds this GCC-only flag to its consumers; clang rejects it.
+RemovedArgs: ['-fno-gnu-unique']
+
+CheckOptions:
+  # GLib and GIO are only supported through their umbrella headers (<glib.h>,
+  # <gio/gio.h>); the per-symbol private headers include-cleaner would ask for
+  # error out when included directly. godot-cpp's generated headers likewise
+  # re-export from internal ones. Standard library headers are still enforced.
+  misc-include-cleaner.IgnoreHeaders: 'glib/.*;glib-object\.h;gobject/.*;gio/.*;glib\.h;glibconfig\.h;godot_cpp/.*;gdextension_interface\.h'

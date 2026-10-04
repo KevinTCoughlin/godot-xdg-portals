@@ -93,7 +93,42 @@ else()
 endif()
 
 target_include_directories(xdg_portals PRIVATE src)
-target_compile_options(xdg_portals PRIVATE -Wall -Wextra -Wpedantic)
+
+# godot-cpp's headers are third-party and warn under -Wextra -Wpedantic
+# (unused parameters in the binder templates, among others). Mark them as
+# system headers so the warnings below — and -Werror — apply to this project's
+# code only. CMake 3.25's FetchContent SYSTEM would do the same, but the floor
+# here is 3.22.
+get_target_property(XDG_PORTALS_GODOT_CPP_TARGET godot::cpp ALIASED_TARGET)
+if(NOT XDG_PORTALS_GODOT_CPP_TARGET)
+    set(XDG_PORTALS_GODOT_CPP_TARGET godot::cpp)
+endif()
+get_target_property(XDG_PORTALS_GODOT_CPP_INCLUDES
+    ${XDG_PORTALS_GODOT_CPP_TARGET} INTERFACE_INCLUDE_DIRECTORIES)
+set_target_properties(${XDG_PORTALS_GODOT_CPP_TARGET} PROPERTIES
+    INTERFACE_SYSTEM_INCLUDE_DIRECTORIES "${XDG_PORTALS_GODOT_CPP_INCLUDES}")
+
+target_compile_options(xdg_portals PRIVATE
+    -Wall -Wextra -Wpedantic
+    -Wshadow
+    -Wconversion
+    -Wsign-conversion
+    -Wold-style-cast
+    -Wcast-qual
+    -Wformat=2
+    -Wimplicit-fallthrough
+    -Wnon-virtual-dtor
+    -Woverloaded-virtual
+    -Wnull-dereference
+    -Wdouble-promotion
+)
+
+# Off by default so a newer compiler's new warning never breaks a user's
+# source build. CI turns it on.
+option(XDG_PORTALS_WERROR "Treat compiler warnings as errors" OFF)
+if(XDG_PORTALS_WERROR)
+    target_compile_options(xdg_portals PRIVATE -Werror)
+endif()
 
 # Godot resolves libraries by the `<name>.<platform>.<target>.<arch>` convention
 # declared in addons/xdg_portals/xdg_portals.gdextension.
