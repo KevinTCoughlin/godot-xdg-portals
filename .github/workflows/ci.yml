@@ -49,7 +49,7 @@ jobs:
       # enough: the analysed sources do not vary by target or architecture.
       - name: Install uv
         if: matrix.target == 'editor' && matrix.arch == 'x86_64'
-        uses: astral-sh/setup-uv@v10
+        uses: astral-sh/setup-uv@v10.2.0
 
       - name: clang-tidy
         if: matrix.target == 'editor' && matrix.arch == 'x86_64'
@@ -239,7 +239,7 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
-      - uses: astral-sh/setup-uv@v10
+      - uses: astral-sh/setup-uv@v10.2.0
       # Tool versions are pinned in scripts/check.sh and run through uvx, so
       # these match a local `scripts/check.sh lint` exactly.
       - name: clang-format
@@ -259,7 +259,7 @@ jobs:
             bash -n "$script"
             echo "ok $script"
           done
-      - uses: astral-sh/setup-uv@v10
+      - uses: astral-sh/setup-uv@v10.2.0
       - name: shellcheck
         run: ./scripts/check.sh shell
 
