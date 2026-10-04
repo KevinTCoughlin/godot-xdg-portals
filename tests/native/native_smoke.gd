@@ -137,9 +137,11 @@ func _check_async_paths() -> void:
 	_expect(uri_result[0] == uri_handle, "the response should arrive on the OpenURI handle")
 	_expect(uri_result[1] == _portal.Response.CANCELLED, "a cancelled request is reported as such")
 
-	# Notification actions.
+	# Notification actions. The "smoke" notification posted earlier also gets
+	# an action from the fake service, so match on the id rather than taking
+	# the first emission.
 	_portal.add_notification("smoke-action", "Title")
-	var action: Array = await _portal.notification_action_invoked
+	var action: Array = await _action_for("smoke-action")
 	_expect(action[0] == "smoke-action", "the action should name the notification")
 	_expect(action[1] == "open-folder", "the action name should be forwarded")
 	_expect(action[2] == ["slot-3"], "the action parameters should be converted")
@@ -160,6 +162,16 @@ func _check_async_paths() -> void:
 		_portal.is_power_saver_enabled() == changed,
 		"the cached state should follow the notification"
 	)
+
+
+## Waits for the action on notification [param id], ignoring any other.
+func _action_for(id: String) -> Array:
+	while true:
+		var action: Array = await _portal.notification_action_invoked
+		if action[0] == id:
+			return action
+		print("  ...  ignoring an action for '%s'" % action[0])
+	return []
 
 
 func _expect(condition: bool, message: String) -> void:
