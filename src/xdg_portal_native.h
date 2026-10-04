@@ -12,13 +12,13 @@
 #include <godot_cpp/variant/string.hpp>
 
 #include <atomic>
-#include <condition_variable>
+#include <deque>
 #include <functional>
 #include <map>
-#include <memory>
 #include <mutex>
-#include <set>
 #include <thread>
+#include <utility>
+#include <vector>
 
 namespace xdg_portals {
 
@@ -31,12 +31,21 @@ namespace xdg_portals {
 // dispatched on that worker thread and are handed to Godot with
 // `call_deferred()`, so script code only ever sees them on the main thread.
 //
+// The worker makes every signal subscription, and the portal name watch, as it
+// starts: before any call can be issued, and whether or not the portal is
+// running yet. Subscriptions name the portal's well-known name as sender, so
+// they follow whichever process owns it.
+//
 // Outgoing calls are of two kinds:
 //   * Non-interactive calls (property reads, GameMode, Notification, Request
-//     .Close) are issued synchronously with a bounded timeout.
-//   * Interactive calls (Inhibit, OpenURI) predict their request handle, watch
-//     it for `org.freedesktop.portal.Request::Response`, and are then issued
-//     asynchronously. They never block the caller.
+//     .Close) are bounded by SYNC_CALL_TIMEOUT_MS.
+//   * Interactive calls (Inhibit, OpenURI) predict their request handle and are
+//     issued asynchronously. One subscription to every
+//     `org.freedesktop.portal.Request::Response` from the portal routes each
+//     Response to its request by object path. They never block the caller.
+//
+// A request always completes: with the portal's Response, or locally with
+// RESPONSE_OTHER (2) when the call fails or the portal goes away first.
 class XdgPortalNative : public godot::RefCounted {
 	// The macro body is godot-cpp's; its generated casts are not ours to restyle.
 	GDCLASS(XdgPortalNative, godot::RefCounted) // NOLINT(misc-const-correctness,modernize-use-auto)
@@ -49,9 +58,12 @@ public:
 	bool is_available() const;
 	godot::String get_unavailable_reason() const;
 	// Interface name -> version, or -1 when the interface is not exported.
+	// Cached per portal instance; the cache is dropped when the portal restarts.
 	godot::Dictionary get_interface_versions();
 
 	// --- org.freedesktop.portal.GameMode -------------------------------------
+	// Each returns the portal's own code. For QueryStatus: 0 inactive, 1 active,
+	// 2 active and registered by `p_pid`, -1 failed or unknown.
 	int game_mode_query_status(int p_pid);
 	int game_mode_register(int p_pid);
 	int game_mode_unregister(int p_pid);
@@ -80,6 +92,28 @@ protected:
 	static void _bind_methods();
 
 private:
+	// An interactive request, keyed by the handle returned to the caller.
+	struct Request {
+		// Where the portal's Request object lives: the predicted handle until
+		// the call returns, then whatever path the portal answered with.
+		godot::String path;
+		// The D-Bus member that started it, for error reports.
+		godot::String context;
+		bool is_inhibit = false;
+		// An Inhibit request answered with success stays open, holding the
+		// inhibition, until it is closed; it is no longer pending.
+		bool answered = false;
+	};
+
+	// A Response that arrived for a path no request claims yet. It can only be
+	// ours while a call is in flight, because the portal may answer on a path
+	// the client learns only from that call's reply.
+	struct UnclaimedResponse {
+		godot::String path;
+		guint32 response = 2;
+		godot::Dictionary results;
+	};
+
 	// Worker-thread plumbing.
 	GMainContext *context = nullptr;
 	GMainLoop *loop = nullptr;
@@ -88,45 +122,83 @@ private:
 	std::thread worker;
 	std::atomic<bool> shutting_down{ false };
 
-	godot::String unavailable_reason;
-
-	// Guards `power_saver_*`, request paths and `handle_counter`.
-	mutable std::mutex state_mutex;
-	bool power_saver_known = false;
-	bool power_saver_enabled = false;
+	// Touched only on the worker thread.
+	guint response_subscription = 0;
 	guint power_saver_subscription = 0;
 	guint action_invoked_subscription = 0;
-	std::map<godot::String, guint> request_subscriptions;
-	// The returned handle remains the public identifier even if the portal
-	// answers with a different object path. Keep the actual path for Close.
-	std::map<godot::String, godot::String> actual_request_paths;
-	std::map<godot::String, godot::String> public_request_handles;
-	std::set<godot::String> inhibit_request_handles;
+	guint portal_name_watch = 0;
+
+	godot::String unavailable_reason;
+
+	// Guards everything below.
+	mutable std::mutex state_mutex;
+	bool power_saver_known = false;
+	// Whether the state has ever been known, so a re-read after the portal
+	// restarts can tell a change from a first answer.
+	bool power_saver_known_once = false;
+	bool power_saver_enabled = false;
+	// Whether the portal name has been reported owned or unowned at least once,
+	// and by whom. An empty owner means nobody owns it right now.
+	bool portal_owner_seen = false;
+	godot::String portal_owner;
+	// Bumped on every owner change, so a read that started against one portal
+	// instance cannot fill the cache for the next.
+	guint64 portal_generation = 0;
+	std::map<godot::String, int> cached_versions;
+	std::map<godot::String, Request> requests;
+	// Object path -> public handle, for routing Response signals.
+	std::map<godot::String, godot::String> request_paths;
+	std::deque<UnclaimedResponse> unclaimed_responses;
+	int calls_in_flight = 0;
 	guint handle_counter = 0;
 
 	// Helpers.
 	bool connect_bus();
+	void start_worker();
+	// Run on the worker as it starts and as it stops.
+	void subscribe_all();
+	void unsubscribe_all();
 	void teardown();
 	// Runs `p_work` on the worker thread, where the private GMainContext is
 	// thread-default, and waits for it (bounded by SYNC_CALL_TIMEOUT_MS). Every
 	// GLib call that captures the thread-default context must go through this.
+	// `p_work` must own everything it touches: after a timeout it may still run
+	// later, when the caller's stack frame is gone.
 	void run_on_worker(std::function<void()> p_work);
 
 	// Synchronous, bounded call against the portal object. Returns nullptr and
 	// emits `portal_error` on failure.
 	GVariant *call_portal_sync(const char *p_interface, const char *p_method, GVariant *p_params,
 			const GVariantType *p_reply_type, const char *p_context);
+	// Reads several properties in parallel, bounded by one SYNC_CALL_TIMEOUT_MS
+	// for the lot. Each result is the unboxed value, owned by the caller, or
+	// nullptr. `r_definitive` says, per property, whether the answer may be
+	// cached: a value, or the portal saying the interface does not exist.
+	std::vector<GVariant *> read_properties(const std::vector<std::pair<const char *, const char *>> &p_properties,
+			std::vector<bool> &r_definitive);
+	// Versions for `p_interfaces`, from the cache where possible.
+	std::vector<int> read_interface_versions(const std::vector<const char *> &p_interfaces);
 	int read_interface_version(const char *p_interface);
-	// Predicts the handle for the next interactive request and subscribes to its
-	// Response signal before the call is issued, as the portal spec requires.
-	godot::String prepare_request(godot::String &r_token);
+
+	// Predicts the handle for the next interactive request and registers it, so
+	// a Response is routed to it however early it arrives.
+	godot::String begin_request(godot::String &r_token, const char *p_context);
 	// Fires an interactive call. On failure the request is completed locally with
 	// RESPONSE_OTHER so callers are never left waiting forever.
 	void call_portal_async(const char *p_interface, const char *p_method, GVariant *p_params,
-			const godot::String &p_handle, const char *p_context);
-	void subscribe_request(const godot::String &p_handle);
-	void unsubscribe_request(const godot::String &p_handle);
-	void refresh_power_saver();
+			const godot::String &p_handle);
+	// The two outcomes of an interactive call's reply, on the worker.
+	void on_call_failed(const godot::String &p_handle, const GError *p_error);
+	void on_call_started(const godot::String &p_handle, const godot::String &p_actual_path);
+	// Routes a Response to its request and completes it. Returns false when no
+	// request claims `p_path`.
+	bool deliver_response(const godot::String &p_path, guint32 p_response, const godot::Dictionary &p_results);
+	// Completes every request still waiting for a Response with RESPONSE_OTHER.
+	void fail_pending_requests(const godot::String &p_reason);
+	void forget_request_locked(const godot::String &p_handle);
+
+	void apply_power_saver(bool p_enabled, bool p_from_signal);
+	void refresh_power_saver_async();
 
 	void emit_error(const godot::String &p_context, const godot::String &p_message);
 	void emit_request_completed(const godot::String &p_handle, int p_response, const godot::Dictionary &p_results);
@@ -140,7 +212,11 @@ private:
 	static void on_action_invoked(GDBusConnection *p_connection, const gchar *p_sender,
 			const gchar *p_path, const gchar *p_interface, const gchar *p_signal,
 			GVariant *p_parameters, gpointer p_user_data);
+	static void on_portal_appeared(GDBusConnection *p_connection, const gchar *p_name,
+			const gchar *p_owner, gpointer p_user_data);
+	static void on_portal_vanished(GDBusConnection *p_connection, const gchar *p_name, gpointer p_user_data);
 	static void on_request_call_finished(GObject *p_source, GAsyncResult *p_result, gpointer p_user_data);
+	static void on_power_saver_read(GObject *p_source, GAsyncResult *p_result, gpointer p_user_data);
 };
 
 } // namespace xdg_portals

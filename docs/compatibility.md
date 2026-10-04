@@ -70,7 +70,9 @@ implemented by a desktop-specific backend, so availability varies:
 This table reflects the interfaces the addon uses, not the full portal surface.
 Because everything is discovered at runtime, a desktop that gains or loses an
 implementation needs no change here — call `refresh_capabilities()` after a
-portal restart.
+portal restart. The native backend notices a restart by itself: requests the old
+instance never answered complete with `Response.OTHER`, its signal
+subscriptions follow the new instance, and the power-saver state is re-read.
 
 ## Flatpak
 

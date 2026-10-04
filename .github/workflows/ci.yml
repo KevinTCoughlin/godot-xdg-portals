@@ -182,6 +182,8 @@ jobs:
       # Runs the real GIO code path against a scripted fake portal on a private
       # session bus. It does not stand in for the desktop checklist in
       # docs/native-testing.md, which needs a graphical session and a human.
+      # One pass per fake-portal mode: default, immediate (0 ms Response),
+      # slow-start, restart and wedged-bus. See docs/native-testing.md.
       - name: Run the native smoke test
         run: ./scripts/run_native_smoke.sh
 

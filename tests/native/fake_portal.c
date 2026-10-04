@@ -12,9 +12,31 @@
 //
 // It is a test fixture, not a portal implementation: it is never installed and
 // never shipped in a release archive.
+//
+// Options select the misbehaviour a smoke pass needs (see
+// scripts/run_native_smoke.sh, which runs one pass per mode):
+//
+//   --response-delay MS      Delay before Request::Response (default 50). 0
+//                            sends it straight after the method reply, which
+//                            is what exposes a client that subscribes late.
+//   --gamemode-other-active  QueryStatus reports GameMode active (1) for a pid
+//                            that has not registered, as when another game
+//                            holds it.
+//   --first-get-delay MS     Stall the whole service for MS before answering
+//                            the first property read, like a portal still
+//                            starting up.
+//   --exit-after-open-uri    Answer OpenURI, then exit without ever sending its
+//                            Response, like a portal that crashed mid-request.
+//   --wedged-bus PATH        Do not act as a portal at all: listen on the unix
+//                            socket PATH and never answer, like a session bus
+//                            that accepts connections and then hangs.
 
 #include <gio/gio.h>
 #include <stdio.h>
+#include <string.h>
+#include <sys/socket.h>
+#include <sys/un.h>
+#include <unistd.h>
 
 #define PORTAL_PATH "/org/freedesktop/portal/desktop"
 
@@ -93,6 +115,12 @@ static const gchar *INTROSPECTION_XML =
 static GDBusNodeInfo *introspection = NULL;
 static gboolean power_saver_enabled = TRUE;
 static const GDBusInterfaceVTable VTABLE;
+
+// Options; see the header comment.
+static guint response_delay_ms = 50;
+static gboolean gamemode_other_active = FALSE;
+static guint first_get_delay_ms = 0;
+static gboolean exit_after_open_uri = FALSE;
 
 // Pids registered through RegisterGame, so QueryStatus answers from state
 // rather than a constant: 0 inactive, 1 active for others, 2 active and
@@ -194,14 +222,23 @@ static void schedule_response(const gchar *sender, gchar *handle, guint32 respon
 	pending->handle = handle;
 	pending->sender = g_strdup(sender);
 	pending->response = response;
-	g_timeout_add_full(G_PRIORITY_DEFAULT, 50, emit_response, pending, pending_response_free);
+	g_timeout_add_full(G_PRIORITY_DEFAULT, response_delay_ms, emit_response, pending,
+			pending_response_free);
+}
+
+static gboolean quit_loop(gpointer data) {
+	(void)data;
+	printf("fake-portal: exiting with a request still pending\n");
+	fflush(stdout);
+	g_main_loop_quit(loop);
+	return G_SOURCE_REMOVE;
 }
 
 static gint32 game_mode_status_for(gint32 pid) {
 	if (g_hash_table_contains(registered_pids, GINT_TO_POINTER(pid))) {
 		return 2;
 	}
-	if (g_hash_table_size(registered_pids) > 0) {
+	if (gamemode_other_active || g_hash_table_size(registered_pids) > 0) {
 		return 1;
 	}
 	return 0;
@@ -272,6 +309,13 @@ static void handle_method_call(GDBusConnection *connection, const gchar *sender,
 			gchar *handle = request_path_for(sender, options);
 			g_variant_unref(options);
 			g_dbus_method_invocation_return_value(invocation, g_variant_new("(o)", handle));
+			if (exit_after_open_uri) {
+				// Leave the request pending forever: the reply goes out, the
+				// Response never does. The delay lets the reply be flushed.
+				g_free(handle);
+				g_timeout_add(100, quit_loop, NULL);
+				return;
+			}
 			// Reported as cancelled so the test can tell a real response code
 			// apart from a locally synthesised one.
 			schedule_response(sender, handle, 1);
@@ -311,6 +355,15 @@ static GVariant *handle_get_property(GDBusConnection *connection, const gchar *s
 	(void)sender;
 	(void)object_path;
 	(void)user_data;
+
+	if (first_get_delay_ms > 0) {
+		// Blocking is the point: a portal that is still starting answers
+		// nothing, not just this one read.
+		printf("fake-portal: stalling %u ms before the first property read\n", first_get_delay_ms);
+		fflush(stdout);
+		g_usleep((gulong)first_get_delay_ms * 1000);
+		first_get_delay_ms = 0;
+	}
 
 	if (g_strcmp0(property_name, "power-saver-enabled") == 0) {
 		return g_variant_new_boolean(power_saver_enabled);
@@ -380,7 +433,65 @@ static void on_name_lost(GDBusConnection *connection, const gchar *name, gpointe
 	g_main_loop_quit(loop);
 }
 
-int main(void) {
+// Listens on `path` and never reads or writes, so a client's authentication
+// handshake waits forever. Connections queue in the listen backlog unaccepted.
+static int run_wedged_bus(const char *path) {
+	int fd = socket(AF_UNIX, SOCK_STREAM, 0);
+	if (fd < 0) {
+		perror("fake-portal: socket");
+		return 1;
+	}
+	struct sockaddr_un address;
+	memset(&address, 0, sizeof(address));
+	address.sun_family = AF_UNIX;
+	if (strlen(path) >= sizeof(address.sun_path)) {
+		g_printerr("fake-portal: socket path too long: %s\n", path);
+		close(fd);
+		return 1;
+	}
+	g_strlcpy(address.sun_path, path, sizeof(address.sun_path));
+	unlink(path);
+	if (bind(fd, (struct sockaddr *)&address, sizeof(address)) != 0 || listen(fd, 16) != 0) {
+		perror("fake-portal: bind/listen");
+		close(fd);
+		return 1;
+	}
+	printf("fake-portal: ready as a wedged bus on %s\n", path);
+	fflush(stdout);
+	for (;;) {
+		pause();
+	}
+}
+
+static gboolean parse_uint(const char *text, guint *r_value) {
+	guint64 value = 0;
+	if (!g_ascii_string_to_unsigned(text, 10, 0, G_MAXUINT, &value, NULL)) {
+		return FALSE;
+	}
+	*r_value = (guint)value;
+	return TRUE;
+}
+
+int main(int argc, char **argv) {
+	for (int i = 1; i < argc; i++) {
+		const char *option = argv[i];
+		const char *value = i + 1 < argc ? argv[i + 1] : NULL;
+		if (g_strcmp0(option, "--response-delay") == 0 && value != NULL && parse_uint(value, &response_delay_ms)) {
+			i++;
+		} else if (g_strcmp0(option, "--first-get-delay") == 0 && value != NULL && parse_uint(value, &first_get_delay_ms)) {
+			i++;
+		} else if (g_strcmp0(option, "--gamemode-other-active") == 0) {
+			gamemode_other_active = TRUE;
+		} else if (g_strcmp0(option, "--exit-after-open-uri") == 0) {
+			exit_after_open_uri = TRUE;
+		} else if (g_strcmp0(option, "--wedged-bus") == 0 && value != NULL) {
+			return run_wedged_bus(value);
+		} else {
+			g_printerr("fake-portal: bad option %s\n", option);
+			return 2;
+		}
+	}
+
 	GError *error = NULL;
 	introspection = g_dbus_node_info_new_for_xml(INTROSPECTION_XML, &error);
 	if (introspection == NULL) {

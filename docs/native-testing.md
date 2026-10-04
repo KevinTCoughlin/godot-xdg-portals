@@ -30,11 +30,22 @@ This builds the fixture in `tests/native/fake_portal.c` — a scripted stand-in 
 session bus via `dbus-run-session`, and runs `tests/native/native_smoke.gd`
 against the **real** `XdgPortalNative` extension.
 
+The test runs once per fake-portal mode, each on its own bus (`--mode NAME`
+runs only that one):
+
+| Mode | The fake portal… | What must hold |
+| --- | --- | --- |
+| `default` | behaves. | Everything below. |
+| `immediate` | sends `Response` the instant the method returns, and has GameMode active for another process. | Everything below; no `Response` is lost to a late subscription. |
+| `slow-start` | stalls 2.5 s on its first property read, past the client's timeout. | `power_saver_changed` still arrives, and capabilities are discovered. |
+| `restart` | exits after answering `OpenURI` without sending its `Response`, and is started again. | The request completes with `OTHER`; signals and requests work against the new instance. |
+| `wedged-bus` | is joined by a socket that accepts connections and never answers, which the extension is pointed at. | Connecting gives up within `CONNECT_TIMEOUT_MS` and says why. |
+
 It exercises the parts of the native layer that need no human:
 
 - connecting to a session bus and reading interface versions;
 - GameMode's three synchronous calls, against a fixture whose `QueryStatus`
-  follows registration (0, then 2, then 0 again);
+  follows registration (0, then 2, then 0 again; 1 when another game holds it);
 - `SchemeSupported`, and local rejection of `file:` in both cases;
 - `AddNotification` / `RemoveNotification`;
 - request-handle prediction and remapping — the fixture rebuilds the path from
@@ -46,6 +57,7 @@ It exercises the parts of the native layer that need no human:
   successful;
 - `Notification.ActionInvoked` delivery and payload conversion, including byte
   arrays and integer-keyed dictionaries;
+- tearing an instance down while its call is still in flight;
 - `PropertiesChanged` on `power-saver-enabled`, and that the cached state
   follows it.
 
@@ -121,7 +133,7 @@ shows exactly what the portal answered.
 | 12 | *Withdraw notification* while it is still on screen. | It disappears. |
 | 13 | Repeat 1–12 inside a Flatpak built with only `--socket=session-bus` and `--talk-name=org.freedesktop.portal.Desktop`. | Identical behaviour; no additional permission needed. |
 | 14 | Quit the demo while an inhibition is active. | The inhibition is released with the process; no stuck idle-inhibitor remains. |
-| 15 | `systemctl --user restart xdg-desktop-portal` while the demo runs, then call `refresh_capabilities()`. | No crash; capabilities are re-discovered. |
+| 15 | `systemctl --user restart xdg-desktop-portal` while the demo runs, then call `refresh_capabilities()`. | No crash; capabilities are re-discovered; a request pending across the restart completes with `other`; power-saver changes are still reported. |
 
 If a check fails, `XDG_PORTALS_DEBUG=1` traces subscriptions, async replies and
 incoming responses on stderr.

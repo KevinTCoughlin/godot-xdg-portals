@@ -33,7 +33,10 @@ Use it for diagnostics, and for gating on a portal member that needs a minimum
 version — `SchemeSupported` is the only such case here.
 
 Capability discovery runs once at backend selection. Call
-`refresh_capabilities()` if the portal service is restarted mid-session.
+`refresh_capabilities()` if the portal service is restarted mid-session. The
+native backend reads every interface version in parallel at startup and caches
+them for as long as the same portal instance runs, so a refresh after a restart
+reads them again and one without a restart costs no bus traffic.
 
 ## GameMode
 
@@ -173,9 +176,10 @@ type (`a{us}` becomes a `Dictionary` keyed by `int`).
 | `notification_action_invoked` | `id: String, action: String, parameters: Array` | The user activates a notification action. |
 | `portal_error` | `context: String, message: String` | A call fails or is rejected. `context` names the D-Bus member, e.g. `"OpenURI.OpenURI"`. |
 
-If an interactive call fails outright, the addon still emits `request_completed`
-for its handle with `Response.OTHER`, so a caller waiting on a handle is never
-stranded.
+If an interactive call fails outright, or the portal service exits or is
+replaced before answering, the addon still emits `request_completed` for its
+handle with `Response.OTHER` (and a `portal_error` saying why), so a caller
+waiting on a handle is never stranded.
 
 ## Enums
 

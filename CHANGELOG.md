@@ -31,6 +31,11 @@ Before 1.0 the public API may change in a minor release.
   exports its entry point and links Foundation. The behaviour itself is a manual
   checklist in `docs/native-testing.md` and has not been run on hardware.
 
+- The native smoke test runs once per fake-portal mode — `default`,
+  `immediate` (`Response` sent with no delay), `slow-start`, `restart` and
+  `wedged-bus` — each on its own bus. `run_native_smoke.sh --mode NAME` runs
+  one. CI runs them all, normally and under the sanitizers.
+
 - `GameModeStatus.ACTIVE_FOR_OTHERS` (`3`): GameMode is active for another
   process, but this one is not registered. Existing values are unchanged.
 
@@ -60,6 +65,32 @@ Before 1.0 the public API may change in a minor release.
   original handle, and `close_request()` uses the portal's actual path.
 - The native power-saver smoke check waits for a real state transition, so its
   result does not depend on the fake portal timer's phase.
+- **Native backend: a `Response` could be lost, leaving `request_completed`
+  unsent.** When the portal answered on a path other than the predicted one,
+  the client subscribed to the real path only after the call's reply, and a
+  `Response` sent straight after the reply could arrive first. One
+  subscription now receives every `Response` from the portal and routes it by
+  path; the real path is recorded before the predicted one is dropped.
+- **Native backend: a portal that exits or restarts no longer strands
+  requests.** Requests it had not answered complete with `Response.OTHER` and
+  a `portal_error`. Its cached interface versions are dropped, the
+  power-saver state is marked unknown and re-read from the new instance, and
+  signals follow the new instance.
+- Native backend: `power_saver_changed` and `notification_action_invoked`
+  arrive even if the portal was slow (over 2 s) or absent at startup. Their
+  subscriptions used to be made only when the interface answered then.
+- Native backend: connecting to the session bus gives up after
+  `CONNECT_TIMEOUT_MS` (5 s). A bus that accepted the connection and never
+  answered hung the game at startup; the constant existed but was unused.
+- Native backend: startup reads the power-saver state and all five interface
+  versions in parallel under one 2 s timeout, instead of up to eight
+  sequential ones. Versions are cached per portal instance, so
+  `is_scheme_supported()` no longer reads the OpenURI version on every call.
+- Native backend: tearing down with a call in flight no longer leaks its
+  payload. The worker delivers cancelled replies, and releases queued tasks
+  that never ran, before it exits. A worker task that outlived its caller's
+  timeout could write a subscription id to the caller's stack and leave that
+  subscription behind; that path no longer exists.
 - macOS: the Low Power Mode observer starts when the backend is created. It
   started on the first `is_power_saver_enabled()` call, so a game that only
   connected `power_saver_changed` was never told about a change. Not run on

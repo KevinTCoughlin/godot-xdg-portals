@@ -12,20 +12,39 @@ extends SceneTree
 ## prediction, synchronous calls, and the three asynchronous signal paths — and
 ## deliberately does not stand in for the desktop checks in
 ## docs/native-testing.md.
+##
+## XDG_PORTALS_SMOKE_MODE names the fake portal's behaviour for this run; the
+## harness starts the fixture to match. See scripts/run_native_smoke.sh.
 
 const TIMEOUT_SECONDS := 15.0
+
+## The bus connection must give up within this long against a bus that never
+## answers: CONNECT_TIMEOUT_MS in src/portal_constants.h, plus slack for a
+## loaded CI machine.
+const WEDGED_BUS_LIMIT_MSEC := 8000
 
 var _failures: PackedStringArray = []
 var _portal: Node = null
 var _backend: DesktopServicesBackend = null
+var _mode: String = ""
 
 
 func _initialize() -> void:
+	_mode = OS.get_environment("XDG_PORTALS_SMOKE_MODE")
+	if _mode.is_empty():
+		_mode = "default"
+	print("native smoke mode: %s" % _mode)
+
 	var watchdog: SceneTreeTimer = create_timer(TIMEOUT_SECONDS)
 	watchdog.timeout.connect(_on_timeout)
 
 	if not ClassDB.class_exists(&"XdgPortalNative"):
 		_fail("the XdgPortalNative extension is not loaded")
+		_finish()
+		return
+
+	if _mode == "wedged-bus":
+		_check_wedged_bus()
 		_finish()
 		return
 
@@ -38,11 +57,20 @@ func _initialize() -> void:
 	_portal = load("res://addons/xdg_portals/desktop_services.gd").new()
 	_portal.set_backend(_backend)
 
-	_check_discovery()
-	_check_game_mode()
-	_check_open_uri_validation()
-	_check_notification_sync()
-	await _check_async_paths()
+	match _mode:
+		"default", "immediate":
+			_check_discovery()
+			_check_game_mode()
+			_check_open_uri_validation()
+			_check_notification_sync()
+			_check_teardown_mid_request()
+			await _check_async_paths()
+		"slow-start":
+			await _check_slow_start()
+		"restart":
+			await _check_restart()
+		_:
+			_fail("unknown smoke mode '%s'" % _mode)
 	_finish()
 
 
@@ -79,8 +107,13 @@ func _check_discovery() -> void:
 
 func _check_game_mode() -> void:
 	# QueryStatus: 0 inactive, 1 active for another process, 2 active and
-	# registered by this one.
-	var before: int = _portal.GameModeStatus.NOT_REGISTERED
+	# registered by this one. The immediate pass starts with another game
+	# holding GameMode.
+	var before: int = (
+		_portal.GameModeStatus.ACTIVE_FOR_OTHERS
+		if _mode == "immediate"
+		else _portal.GameModeStatus.NOT_REGISTERED
+	)
 	_expect(
 		_portal.query_game_mode() == before,
 		"before registering, GameMode reports %s, got %s" % [before, _portal.query_game_mode()]
@@ -111,6 +144,23 @@ func _check_notification_sync() -> void:
 		"AddNotification should succeed"
 	)
 	_expect(_portal.remove_notification("smoke"), "RemoveNotification should succeed")
+
+
+## Destroys a second extension instance while its OpenURI call is still in
+## flight, so teardown has a cancelled reply to deliver. Under --sanitize this
+## catches a use-after-free on that path. It cannot catch the reply never being
+## delivered: GLib keeps the abandoned call reachable, so LeakSanitizer stays
+## quiet. XDG_PORTALS_DEBUG=1 shows "Operation was cancelled" when it is.
+func _check_teardown_mid_request() -> void:
+	var doomed: DesktopServicesNativeBackend = DesktopServicesNativeBackend.create()
+	if doomed == null or not doomed.is_available():
+		_fail("a second native backend could not be created")
+		return
+	var handle: String = doomed.open_uri("https://godotengine.org", false, "")
+	_expect(handle != "", "a request can be started on a backend about to be destroyed")
+	# Drops the only reference: the extension tears down here, mid-request.
+	doomed.shutdown()
+	_expect(not doomed.is_available(), "a shut-down backend reports unavailable")
 
 
 func _check_async_paths() -> void:
@@ -162,7 +212,21 @@ func _check_async_paths() -> void:
 			"a{us} converts to a Dictionary keyed by int, got %s" % [parameters[2]]
 		)
 
-	# The fake service toggles power-saver every 300 ms.
+	await _check_power_saver_transition()
+
+
+## Waits for the action on notification [param id], ignoring any other.
+func _action_for(id: String) -> Array:
+	while true:
+		var action: Array = await _portal.notification_action_invoked
+		if action[0] == id:
+			return action
+		print("  ...  ignoring an action for '%s'" % action[0])
+	return []
+
+
+## The fake service toggles power-saver every 300 ms.
+func _check_power_saver_transition() -> void:
 	var initial: Variant = _portal.is_power_saver_enabled()
 	_expect(initial != null, "the power-saver property should be readable")
 	# A transition may occur between the read and the await. Observe a few
@@ -180,14 +244,79 @@ func _check_async_paths() -> void:
 	)
 
 
-## Waits for the action on notification [param id], ignoring any other.
-func _action_for(id: String) -> Array:
-	while true:
-		var action: Array = await _portal.notification_action_invoked
-		if action[0] == id:
-			return action
-		print("  ...  ignoring an action for '%s'" % action[0])
-	return []
+## The portal took longer than the client's timeout to answer its first
+## property read. Change notifications must still be delivered, and the state
+## must become known.
+func _check_slow_start() -> void:
+	var changed: bool = await _portal.power_saver_changed
+	_expect(true, "power_saver_changed arrived despite the slow start")
+	_portal.refresh_capabilities()
+	_expect(
+		_portal.has_capability(_portal.Capability.POWER_PROFILE_MONITOR),
+		"the power profile monitor is discovered once the portal answers"
+	)
+	_expect(
+		_portal.is_power_saver_enabled() == changed,
+		"the cached state follows the notification, got %s" % [_portal.is_power_saver_enabled()]
+	)
+
+
+## The portal exits after answering OpenURI, without ever sending its
+## Response, and a fresh instance takes its place.
+func _check_restart() -> void:
+	var uri_handle: String = _portal.open_uri("https://godotengine.org")
+	_expect(uri_handle != "", "open_uri should return a handle")
+	var uri_result: Array = await _portal.request_completed
+	_expect(uri_result[0] == uri_handle, "the pending request completes when the portal goes away")
+	_expect(
+		uri_result[1] == _portal.Response.OTHER, "and is reported as OTHER, got %s" % uri_result[1]
+	)
+
+	# The restarted instance toggles power-saver like the first one did. Seeing
+	# that proves the signal subscriptions followed the new owner.
+	var changed: bool = await _portal.power_saver_changed
+	_expect(true, "power_saver_changed arrives from the restarted portal")
+	_expect(
+		_portal.is_power_saver_enabled() == changed, "the cached state follows the new instance"
+	)
+
+	var handle: String = _portal.inhibit(_portal.InhibitFlags.IDLE, "After restart")
+	_expect(handle != "", "inhibit works against the restarted portal")
+	var inhibit_result: Array = await _portal.request_completed
+	_expect(inhibit_result[0] == handle, "its completion uses the caller's handle")
+	_expect(inhibit_result[1] == _portal.Response.SUCCESS, "and the new instance answers 0")
+	_expect(_portal.close_request(handle), "Close reaches the restarted portal")
+
+
+## The session bus address points at a socket that never answers. Creating the
+## backend must give up in bounded time and say why.
+##
+## Only the extension sees that address: it is set in this process just before
+## the backend is created and put back straight after, because Godot talks to
+## the session bus itself, with no timeout, and would hang before the test ran.
+func _check_wedged_bus() -> void:
+	var wedged: String = OS.get_environment("XDG_PORTALS_SMOKE_WEDGED_BUS")
+	if wedged.is_empty():
+		_fail("XDG_PORTALS_SMOKE_WEDGED_BUS is not set; run this through run_native_smoke.sh")
+		return
+	var real_bus: String = OS.get_environment("DBUS_SESSION_BUS_ADDRESS")
+	OS.set_environment("DBUS_SESSION_BUS_ADDRESS", wedged)
+	var started: int = Time.get_ticks_msec()
+	var backend: DesktopServicesNativeBackend = DesktopServicesNativeBackend.create()
+	var elapsed: int = Time.get_ticks_msec() - started
+	OS.set_environment("DBUS_SESSION_BUS_ADDRESS", real_bus)
+	_expect(backend != null, "the backend is still constructed")
+	_expect(
+		elapsed < WEDGED_BUS_LIMIT_MSEC,
+		"connecting gave up after %d ms (limit %d)" % [elapsed, WEDGED_BUS_LIMIT_MSEC]
+	)
+	if backend != null:
+		_expect(not backend.is_available(), "a bus that never answers is unavailable")
+		_expect(
+			backend.get_unavailable_reason().containsn("timed out"),
+			"the reason says the connection timed out: '%s'" % backend.get_unavailable_reason()
+		)
+		backend.shutdown()
 
 
 func _expect(condition: bool, message: String) -> void:
@@ -214,5 +343,5 @@ func _finish() -> void:
 		_portal.call_deferred("free")
 		_portal = null
 	print("")
-	print("native smoke: %d failure(s)" % _failures.size())
+	print("native smoke (%s): %d failure(s)" % [_mode, _failures.size()])
 	quit(1 if _failures.size() > 0 else 0)
