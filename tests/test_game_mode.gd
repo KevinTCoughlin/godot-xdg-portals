@@ -99,3 +99,38 @@ func test_missing_capability_short_circuits_every_call() -> void:
 	assert_false(portal.request_game_mode())
 	assert_false(portal.release_game_mode())
 	assert_eq(mock.calls.size(), 0, "no bus traffic when the interface is absent")
+
+
+func test_swapping_backends_releases_held_game_mode() -> void:
+	assert_true(portal.request_game_mode())
+	var held_by: DesktopServicesMockBackend = mock
+	portal.set_backend(DesktopServicesMockBackend.new())
+	var releases := held_by.calls_to("game_mode_unregister")
+	assert_eq(releases.size(), 1, "the old backend's registration is released before it goes")
+	if releases.size() == 1:
+		assert_eq(releases[0]["args"][0], OS.get_process_id())
+
+
+func test_released_game_mode_is_not_released_again() -> void:
+	assert_true(portal.request_game_mode())
+	assert_true(portal.release_game_mode())
+	portal.set_backend(DesktopServicesMockBackend.new())
+	assert_eq(mock.calls_to("game_mode_unregister").size(), 1, "only the explicit release")
+
+
+func test_failed_registration_is_not_released() -> void:
+	mock.next_game_mode_result = -1
+	assert_false(portal.request_game_mode())
+	portal.set_backend(DesktopServicesMockBackend.new())
+	assert_eq(mock.calls_to("game_mode_unregister").size(), 0, "nothing was held")
+
+
+func test_leaving_the_tree_releases_held_game_mode() -> void:
+	assert_true(portal.request_game_mode(4242))
+	# What the engine calls when the autoload leaves the tree at exit. The
+	# runner's tree is not live while tests run, so it is called directly.
+	portal._exit_tree()
+	var releases := mock.calls_to("game_mode_unregister")
+	assert_eq(releases.size(), 1, "an autoload leaving the tree releases GameMode")
+	if releases.size() == 1:
+		assert_eq(releases[0]["args"][0], 4242, "for the pid that was registered")

@@ -59,7 +59,9 @@ the names. `REJECTED` (`2`) is deprecated and never returned — GameMode has no
 such state; earlier versions misread the portal's `2` as it.
 
 `request_game_mode()` and `release_game_mode()` return `true` only for the
-portal's documented success code (`0`).
+portal's documented success code (`0`). A registration still held when the
+`DesktopServices` node leaves the tree, or when `set_backend()` replaces the
+backend, is released then.
 
 These three calls are synchronous with a 2-second timeout — they are
 non-interactive and show no UI.
