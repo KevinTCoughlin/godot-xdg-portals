@@ -106,6 +106,21 @@ if [[ -n "$GODOT_CPP_PATH" ]]; then
 fi
 
 cmake "${CONFIGURE_ARGS[@]}"
+# The normal and --sanitize builds write the same output file from different
+# build directories, so whichever ran last would look up to date to the other
+# and never be relinked. Removing it first forces the link; nothing recompiles.
+case "$(uname -s)" in
+	Darwin) OUTPUT_NAME="libxdg_portals.macos.$TARGET.dylib" ;;
+	*)
+		case "$(uname -m)" in
+			aarch64|arm64) OUTPUT_ARCH="arm64" ;;
+			*) OUTPUT_ARCH="$(uname -m)" ;;
+		esac
+		OUTPUT_NAME="libxdg_portals.linux.$TARGET.$OUTPUT_ARCH.so"
+		;;
+esac
+rm -f "$REPO_ROOT/addons/xdg_portals/bin/$OUTPUT_NAME"
+
 cmake --build "$BUILD_DIR" --parallel "$JOBS"
 
 echo
