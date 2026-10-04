@@ -61,7 +61,7 @@ implemented by a desktop-specific backend, so availability varies:
 
 | Interface | GNOME | KDE Plasma | wlroots (sway, Hyprland) | Notes |
 | --- | --- | --- | --- | --- |
-| `GameMode` | yes | yes | yes | Provided by `xdg-desktop-portal` itself, forwarding to host `gamemoded`. Returns "rejected" if `gamemoded` is not installed. |
+| `GameMode` | yes | yes | yes | Provided by `xdg-desktop-portal` itself, forwarding to host `gamemoded`. Without `gamemoded`, `request_game_mode()` fails and `query_game_mode()` reports unknown. |
 | `Inhibit` | yes | yes | partial | wlroots backends implement idle inhibition; logout and user-switch bits may be ignored. |
 | `PowerProfileMonitor` | yes | yes | yes | Backed by `power-profiles-daemon` or `tuned`; reports unknown when neither runs. |
 | `OpenURI` | yes | yes | yes | `SchemeSupported` needs `xdg-desktop-portal` 1.16+. |

@@ -31,14 +31,30 @@ Before 1.0 the public API may change in a minor release.
   exports its entry point and links Foundation. The behaviour itself is a manual
   checklist in `docs/native-testing.md` and has not been run on hardware.
 
+- `GameModeStatus.ACTIVE_FOR_OTHERS` (`3`): GameMode is active for another
+  process, but this one is not registered. Existing values are unchanged.
+
 - `DesktopServices.get_supported_inhibit_flags()` and the matching backend method,
   reporting which `InhibitFlags` bits the current backend can request. Against a
   portal this is every documented bit; a backend that cannot inhibit reports
   `0`. It declares what is requestable, not what a session honoured — the portal
   never reports which bits it acted on — and it does not gate `inhibit()`.
 
+### Deprecated
+
+- `GameModeStatus.REJECTED`. It is never returned: GameMode has no such state,
+  and the value only ever came from misreading the portal's code `2`.
+
 ### Fixed
 
+- **`query_game_mode()` reported GameMode backwards.** The native backend passed
+  the portal's `QueryStatus` code straight through, but the portal numbers its
+  states differently from `GameModeStatus`: its `1` means GameMode is active for
+  some other process, and its `2` means this process is registered. So a game
+  that was not registered read `REGISTERED` whenever another game held GameMode,
+  and a game that had just registered read `REJECTED`. The backend now
+  translates the codes. The fake portal's `QueryStatus` follows registration
+  instead of always answering `1`, which had locked the mistake in.
 - Interactive requests keep the returned handle as their public identifier
   when a portal returns a different object path. Completion reports the
   original handle, and `close_request()` uses the portal's actual path.

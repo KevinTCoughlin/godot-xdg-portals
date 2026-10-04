@@ -13,9 +13,40 @@ func test_query_reports_registered() -> void:
 	assert_eq(portal.query_game_mode(), Facade.GameModeStatus.REGISTERED)
 
 
-func test_query_reports_rejected() -> void:
+func test_query_reports_active_for_others() -> void:
+	mock.next_game_mode_status = Facade.GameModeStatus.ACTIVE_FOR_OTHERS
+	assert_eq(portal.query_game_mode(), Facade.GameModeStatus.ACTIVE_FOR_OTHERS)
+
+
+func test_query_never_reports_the_deprecated_rejected_status() -> void:
 	mock.next_game_mode_status = Facade.GameModeStatus.REJECTED
-	assert_eq(portal.query_game_mode(), Facade.GameModeStatus.REJECTED)
+	assert_eq(
+		portal.query_game_mode(),
+		Facade.GameModeStatus.UNKNOWN,
+		"GameMode has no rejected state; a backend claiming one is not believed"
+	)
+
+
+func test_existing_enum_values_are_unchanged() -> void:
+	assert_eq(Facade.GameModeStatus.UNKNOWN, -1)
+	assert_eq(Facade.GameModeStatus.NOT_REGISTERED, 0)
+	assert_eq(Facade.GameModeStatus.REGISTERED, 1)
+	assert_eq(Facade.GameModeStatus.REJECTED, 2)
+
+
+func test_native_backend_translates_portal_codes() -> void:
+	# org.freedesktop.portal.GameMode.QueryStatus: 0 inactive, 1 active,
+	# 2 active and registered by this pid, -1 failed.
+	var translate := DesktopServicesNativeBackend.game_mode_status_from_portal
+	assert_eq(translate.call(0), Facade.GameModeStatus.NOT_REGISTERED, "0 is inactive")
+	assert_eq(
+		translate.call(1),
+		Facade.GameModeStatus.ACTIVE_FOR_OTHERS,
+		"1 is active for someone else, not registered"
+	)
+	assert_eq(translate.call(2), Facade.GameModeStatus.REGISTERED, "2 is registered")
+	assert_eq(translate.call(-1), Facade.GameModeStatus.UNKNOWN, "-1 is a failed query")
+	assert_eq(translate.call(3), Facade.GameModeStatus.UNKNOWN, "undocumented codes are unknown")
 
 
 func test_query_maps_unrecognised_status_to_unknown() -> void:

@@ -49,7 +49,8 @@ var interface_versions: Dictionary = {
 	_FACADE.Capability.NOTIFICATION: 2,
 }
 
-## Value returned by [method game_mode_query_status].
+## Value returned by [method game_mode_query_status]: a
+## [code]GameModeStatus[/code], not a raw portal code.
 var next_game_mode_status: int = 0
 ## Value returned by [method game_mode_register] and [method game_mode_unregister].
 var next_game_mode_result: int = 0

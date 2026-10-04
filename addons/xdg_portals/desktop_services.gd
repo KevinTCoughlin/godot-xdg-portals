@@ -53,11 +53,20 @@ enum InhibitFlags {
 }
 
 ## Result of [method query_game_mode].
+##
+## The numeric values are this addon's, not the portal's: the portal answers
+## [code]QueryStatus[/code] with 0 (inactive), 1 (active), 2 (active and the
+## process is registered) or -1 (failed), and the backend translates. Compare
+## against the names, never against raw integers.
 enum GameModeStatus {
 	UNKNOWN = -1,  ## The status could not be determined.
-	NOT_REGISTERED = 0,  ## The process is not registered with GameMode.
-	REGISTERED = 1,  ## The process is registered with GameMode.
-	REJECTED = 2,  ## GameMode refused the registration.
+	NOT_REGISTERED = 0,  ## GameMode is inactive; nothing is registered with it.
+	REGISTERED = 1,  ## GameMode is active and the process is registered with it.
+	## Deprecated: never returned. GameMode has no such status; it was a
+	## misreading of the portal's code 2, which means [constant REGISTERED].
+	REJECTED = 2,
+	## GameMode is active for another process, but this one is not registered.
+	ACTIVE_FOR_OTHERS = 3,
 }
 
 ## Response code carried by [signal request_completed].
@@ -222,16 +231,21 @@ func get_interface_version(capability: Capability) -> int:
 
 
 ## Queries whether [param pid] is registered with GameMode. [code]0[/code] means
-## the current process. Returns [constant GameModeStatus.UNKNOWN] when the status
-## could not be determined.
+## the current process. Returns [constant GameModeStatus.REGISTERED] only when
+## GameMode is active [i]and[/i] [param pid] is registered;
+## [constant GameModeStatus.ACTIVE_FOR_OTHERS] when another process holds it;
+## [constant GameModeStatus.UNKNOWN] when the status could not be determined.
 func query_game_mode(pid: int = 0) -> GameModeStatus:
 	if not has_capability(Capability.GAME_MODE):
 		return GameModeStatus.UNKNOWN
 	var status: int = _backend.game_mode_query_status(_resolve_pid(pid))
 	match status:
-		GameModeStatus.NOT_REGISTERED, GameModeStatus.REGISTERED, GameModeStatus.REJECTED:
+		GameModeStatus.NOT_REGISTERED, GameModeStatus.REGISTERED:
+			return status as GameModeStatus
+		GameModeStatus.ACTIVE_FOR_OTHERS:
 			return status as GameModeStatus
 		_:
+			# Includes REJECTED, which no backend reports.
 			return GameModeStatus.UNKNOWN
 
 

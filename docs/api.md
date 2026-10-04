@@ -45,10 +45,21 @@ func release_game_mode(pid: int = 0) -> bool
 
 `pid` defaults to `0`, meaning the current process (`OS.get_process_id()`).
 
-`query_game_mode()` returns `GameModeStatus.UNKNOWN` when the status could not be
-determined, including when the portal answers with a code this addon does not
-recognise. `request_game_mode()` and `release_game_mode()` return `true` only for
-the portal's documented success code (`0`).
+`query_game_mode()` answers with:
+
+| `GameModeStatus` | Meaning | Portal `QueryStatus` code |
+| --- | --- | --- |
+| `NOT_REGISTERED` | GameMode is inactive. | `0` |
+| `ACTIVE_FOR_OTHERS` | GameMode is active for another process; this one is not registered. | `1` |
+| `REGISTERED` | GameMode is active and this process is registered. | `2` |
+| `UNKNOWN` | The query failed, or the portal answered with a code this addon does not recognise. | `-1`, or anything else |
+
+The enum's values are the addon's own, not the portal's codes: compare against
+the names. `REJECTED` (`2`) is deprecated and never returned — GameMode has no
+such state; earlier versions misread the portal's `2` as it.
+
+`request_game_mode()` and `release_game_mode()` return `true` only for the
+portal's documented success code (`0`).
 
 These three calls are synchronous with a 2-second timeout — they are
 non-interactive and show no UI.
@@ -166,7 +177,11 @@ stranded.
 
 ```gdscript
 enum InhibitFlags { LOGOUT = 1, USER_SWITCH = 2, SUSPEND = 4, IDLE = 8 }
-enum GameModeStatus { UNKNOWN = -1, NOT_REGISTERED = 0, REGISTERED = 1, REJECTED = 2 }
+enum GameModeStatus {
+    UNKNOWN = -1, NOT_REGISTERED = 0, REGISTERED = 1,
+    REJECTED = 2,           # deprecated, never returned
+    ACTIVE_FOR_OTHERS = 3,
+}
 enum Response { SUCCESS = 0, CANCELLED = 1, OTHER = 2 }
 enum NotificationPriority { LOW = 0, NORMAL = 1, HIGH = 2, URGENT = 3 }
 enum Capability { GAME_MODE, INHIBIT, POWER_PROFILE_MONITOR, OPEN_URI, NOTIFICATION }

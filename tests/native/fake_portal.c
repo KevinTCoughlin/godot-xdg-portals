@@ -94,6 +94,11 @@ static GDBusNodeInfo *introspection = NULL;
 static gboolean power_saver_enabled = TRUE;
 static const GDBusInterfaceVTable VTABLE;
 
+// Pids registered through RegisterGame, so QueryStatus answers from state
+// rather than a constant: 0 inactive, 1 active for others, 2 active and
+// registered by this pid, as org.freedesktop.portal.GameMode specifies.
+static GHashTable *registered_pids = NULL;
+
 typedef struct {
 	gchar *handle;
 	gchar *sender;
@@ -180,6 +185,16 @@ static void schedule_response(const gchar *sender, gchar *handle, guint32 respon
 	g_timeout_add_full(G_PRIORITY_DEFAULT, 50, emit_response, pending, pending_response_free);
 }
 
+static gint32 game_mode_status_for(gint32 pid) {
+	if (g_hash_table_contains(registered_pids, GINT_TO_POINTER(pid))) {
+		return 2;
+	}
+	if (g_hash_table_size(registered_pids) > 0) {
+		return 1;
+	}
+	return 0;
+}
+
 static void handle_method_call(GDBusConnection *connection, const gchar *sender,
 		const gchar *object_path, const gchar *interface_name, const gchar *method_name,
 		GVariant *parameters, GDBusMethodInvocation *invocation, gpointer user_data) {
@@ -191,11 +206,18 @@ static void handle_method_call(GDBusConnection *connection, const gchar *sender,
 	fflush(stdout);
 
 	if (g_strcmp0(interface_name, "org.freedesktop.portal.GameMode") == 0) {
+		gint32 pid = 0;
+		g_variant_get(parameters, "(i)", &pid);
 		if (g_strcmp0(method_name, "QueryStatus") == 0) {
-			g_dbus_method_invocation_return_value(invocation, g_variant_new("(i)", 1));
-		} else if (g_strcmp0(method_name, "RegisterGame") == 0 ||
-				g_strcmp0(method_name, "UnregisterGame") == 0) {
+			g_dbus_method_invocation_return_value(invocation,
+					g_variant_new("(i)", game_mode_status_for(pid)));
+		} else if (g_strcmp0(method_name, "RegisterGame") == 0) {
+			g_hash_table_add(registered_pids, GINT_TO_POINTER(pid));
 			g_dbus_method_invocation_return_value(invocation, g_variant_new("(i)", 0));
+		} else if (g_strcmp0(method_name, "UnregisterGame") == 0) {
+			const gboolean was_registered = g_hash_table_remove(registered_pids, GINT_TO_POINTER(pid));
+			g_dbus_method_invocation_return_value(invocation,
+					g_variant_new("(i)", was_registered ? 0 : -1));
 		} else {
 			g_dbus_method_invocation_return_error(invocation, G_DBUS_ERROR,
 					G_DBUS_ERROR_UNKNOWN_METHOD, "Unknown method %s", method_name);
@@ -355,6 +377,7 @@ int main(void) {
 		return 1;
 	}
 
+	registered_pids = g_hash_table_new(g_direct_hash, g_direct_equal);
 	loop = g_main_loop_new(NULL, FALSE);
 	owner_id = g_bus_own_name(G_BUS_TYPE_SESSION, "org.freedesktop.portal.Desktop",
 			G_BUS_NAME_OWNER_FLAGS_NONE, on_bus_acquired, on_name_acquired, on_name_lost,
@@ -365,5 +388,6 @@ int main(void) {
 	g_bus_unown_name(owner_id);
 	g_main_loop_unref(loop);
 	g_dbus_node_info_unref(introspection);
+	g_hash_table_unref(registered_pids);
 	return 0;
 }

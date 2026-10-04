@@ -159,8 +159,8 @@ func _game_mode_name(status: int) -> String:
 			return "not registered"
 		DesktopServices.GameModeStatus.REGISTERED:
 			return "registered"
-		DesktopServices.GameModeStatus.REJECTED:
-			return "rejected"
+		DesktopServices.GameModeStatus.ACTIVE_FOR_OTHERS:
+			return "active for another process"
 		_:
 			return "unknown"
 

@@ -33,7 +33,8 @@ against the **real** `XdgPortalNative` extension.
 It exercises the parts of the native layer that need no human:
 
 - connecting to a session bus and reading interface versions;
-- GameMode's three synchronous calls;
+- GameMode's three synchronous calls, against a fixture whose `QueryStatus`
+  follows registration (0, then 2, then 0 again);
 - `SchemeSupported`, and local rejection of `file:` in both cases;
 - `AddNotification` / `RemoveNotification`;
 - request-handle prediction and remapping — the fixture rebuilds the path from
@@ -106,7 +107,7 @@ shows exactly what the portal answered.
 | # | Check | Expected |
 | --- | --- | --- |
 | 1 | Launch the demo on GNOME, KDE and a wlroots compositor. | The status line names the `native` backend and lists the interfaces each desktop exports. |
-| 2 | With `gamemoded` installed: *Query GameMode* → *Request GameMode* → *Query GameMode*. | `not registered`, then `ok`, then `registered`. |
+| 2 | With `gamemoded` installed: *Query GameMode* → *Request GameMode* → *Query GameMode*. | `not registered` (or `active for another process` if another game holds it), then `ok`, then `registered`. |
 | 3 | Without `gamemoded`: *Request GameMode*. | Reports failure — not a silent success. |
 | 4 | *Inhibit idle + suspend*, then leave the machine idle past its blank timeout. | The screen does not blank. `request_completed` reports `success`. |
 | 5 | *Close inhibition*, then idle again. | The screen blanks normally. |

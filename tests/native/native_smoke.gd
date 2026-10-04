@@ -78,12 +78,23 @@ func _check_discovery() -> void:
 
 
 func _check_game_mode() -> void:
+	# QueryStatus: 0 inactive, 1 active for another process, 2 active and
+	# registered by this one.
+	var before: int = _portal.GameModeStatus.NOT_REGISTERED
 	_expect(
-		_portal.query_game_mode() == _portal.GameModeStatus.REGISTERED,
-		"the fake service reports the process as registered"
+		_portal.query_game_mode() == before,
+		"before registering, GameMode reports %s, got %s" % [before, _portal.query_game_mode()]
 	)
 	_expect(_portal.request_game_mode(), "RegisterGame should succeed")
+	_expect(
+		_portal.query_game_mode() == _portal.GameModeStatus.REGISTERED,
+		"after registering, this process is registered, got %s" % _portal.query_game_mode()
+	)
 	_expect(_portal.release_game_mode(), "UnregisterGame should succeed")
+	_expect(
+		_portal.query_game_mode() == before,
+		"after releasing, GameMode is back to %s, got %s" % [before, _portal.query_game_mode()]
+	)
 
 
 func _check_open_uri_validation() -> void:
