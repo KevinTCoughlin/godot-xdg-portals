@@ -20,8 +20,9 @@ func test_power_saver_disabled() -> void:
 
 func test_power_saver_unknown_is_null() -> void:
 	mock.next_power_saver_state = -1
-	assert_null(portal.is_power_saver_enabled(),
-		"an unreadable property is null, not a guessed false")
+	assert_null(
+		portal.is_power_saver_enabled(), "an unreadable property is null, not a guessed false"
+	)
 
 
 func test_power_saver_changes_are_forwarded() -> void:

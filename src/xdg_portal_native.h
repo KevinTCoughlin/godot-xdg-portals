@@ -38,7 +38,8 @@ namespace xdg_portals {
 //     it for `org.freedesktop.portal.Request::Response`, and are then issued
 //     asynchronously. They never block the caller.
 class XdgPortalNative : public godot::RefCounted {
-	GDCLASS(XdgPortalNative, godot::RefCounted)
+	// The macro body is godot-cpp's; its generated casts are not ours to restyle.
+	GDCLASS(XdgPortalNative, godot::RefCounted) // NOLINT(misc-const-correctness,modernize-use-auto)
 
 public:
 	XdgPortalNative();

@@ -8,10 +8,10 @@ extends Control
 ## It is also the quickest way to check a real desktop session: run the project
 ## and the log pane shows exactly what the running portal service answered.
 
+var _inhibit_handle: String = ""
+
 @onready var _log: RichTextLabel = %Log
 @onready var _status: Label = %Status
-
-var _inhibit_handle: String = ""
 
 
 func _ready() -> void:
@@ -37,9 +37,10 @@ func _ready() -> void:
 
 func _refresh_status() -> void:
 	if not DesktopServices.is_available():
-		_status.text = "Portals unavailable (%s backend): %s" % [
-			DesktopServices.get_backend_name(), DesktopServices.get_unavailable_reason()
-		]
+		_status.text = (
+			"Portals unavailable (%s backend): %s"
+			% [DesktopServices.get_backend_name(), DesktopServices.get_unavailable_reason()]
+		)
 		return
 
 	# Capability names, not interface names: a backend that is not a portal
@@ -52,10 +53,13 @@ func _refresh_status() -> void:
 		var label: String = DesktopServices.Capability.keys()[capability]
 		var version: int = DesktopServices.get_interface_version(capability)
 		present.append(label if version < 0 else "%s v%d" % [label, version])
-	_status.text = "Backend: %s — %s" % [
-		DesktopServices.get_backend_name(),
-		", ".join(present) if present.size() > 0 else "no capabilities available"
-	]
+	_status.text = (
+		"Backend: %s — %s"
+		% [
+			DesktopServices.get_backend_name(),
+			", ".join(present) if present.size() > 0 else "no capabilities available"
+		]
+	)
 
 
 func _on_query_game_mode() -> void:
@@ -81,9 +85,15 @@ func _on_close_inhibit() -> void:
 	if _inhibit_handle.is_empty():
 		_write("No inhibition to close.")
 		return
-	_write("Close(%s): %s" % [
-		_inhibit_handle, "ok" if DesktopServices.close_request(_inhibit_handle) else "failed"
-	])
+	_write(
+		(
+			"Close(%s): %s"
+			% [
+				_inhibit_handle,
+				"ok" if DesktopServices.close_request(_inhibit_handle) else "failed"
+			]
+		)
+	)
 	_inhibit_handle = ""
 
 
@@ -106,14 +116,21 @@ func _on_scheme_supported() -> void:
 
 func _on_notify() -> void:
 	var ok: bool = DesktopServices.add_notification(
-		"demo", "Godot XDG Portals", "Posted from the demo project.",
+		"demo",
+		"Godot XDG Portals",
+		"Posted from the demo project.",
 		DesktopServices.NotificationPriority.NORMAL
 	)
 	_write("AddNotification: %s" % ("ok" if ok else "failed"))
 
 
 func _on_remove_notify() -> void:
-	_write("RemoveNotification: %s" % ("ok" if DesktopServices.remove_notification("demo") else "failed"))
+	_write(
+		(
+			"RemoveNotification: %s"
+			% ("ok" if DesktopServices.remove_notification("demo") else "failed")
+		)
+	)
 
 
 func _on_power_saver_changed(enabled: bool) -> void:
@@ -121,9 +138,7 @@ func _on_power_saver_changed(enabled: bool) -> void:
 
 
 func _on_request_completed(handle: String, response: int, results: Dictionary) -> void:
-	_write("[signal] request_completed: %s -> %s %s" % [
-		handle, _response_name(response), results
-	])
+	_write("[signal] request_completed: %s -> %s %s" % [handle, _response_name(response), results])
 
 
 func _on_action_invoked(id: String, action: String, parameters: Array) -> void:

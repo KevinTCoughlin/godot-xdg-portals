@@ -20,6 +20,8 @@ BUILD_TYPE="Release"
 JOBS="$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)"
 GODOT_CPP_PATH=""
 BUILD_DIR=""
+WERROR=0
+SANITIZE=0
 
 usage() {
 	cat <<'EOF'
@@ -33,6 +35,12 @@ Options:
                         pinned tag.
       --build-dir PATH  Build directory (default: build-<target>).
       --clean           Remove the build directory before configuring.
+      --werror          Treat compiler warnings as errors (CI does this).
+      --sanitize        Build with AddressSanitizer and UBSan (Linux only;
+                        default build directory build-<target>-sanitize).
+                        Run the result with scripts/run_native_smoke.sh
+                        --sanitize. The library overwrites the normal one in
+                        addons/xdg_portals/bin, so rebuild without it after.
   -h, --help            Show this help.
 
 The resulting library is written to the path
@@ -54,6 +62,8 @@ while [[ $# -gt 0 ]]; do
 		--godot-cpp) GODOT_CPP_PATH="$2"; shift 2 ;;
 		--build-dir) BUILD_DIR="$2"; shift 2 ;;
 		--clean) CLEAN=1; shift ;;
+		--werror) WERROR=1; shift ;;
+		--sanitize) SANITIZE=1; shift ;;
 		-h|--help) usage; exit 0 ;;
 		*) echo "Unknown option: $1" >&2; usage >&2; exit 2 ;;
 	esac
@@ -67,9 +77,16 @@ esac
 if [[ "$TARGET" == "template_debug" ]]; then
 	BUILD_TYPE="Debug"
 fi
+# Sanitizer reports need line numbers and frames that were not inlined away.
+if [[ "$SANITIZE" -eq 1 ]]; then
+	BUILD_TYPE="RelWithDebInfo"
+fi
 
 if [[ -z "$BUILD_DIR" ]]; then
 	BUILD_DIR="$REPO_ROOT/build-$TARGET"
+	if [[ "$SANITIZE" -eq 1 ]]; then
+		BUILD_DIR="$BUILD_DIR-sanitize"
+	fi
 fi
 
 if [[ "$CLEAN" -eq 1 ]]; then
@@ -81,12 +98,29 @@ CONFIGURE_ARGS=(
 	-B "$BUILD_DIR"
 	-DCMAKE_BUILD_TYPE="$BUILD_TYPE"
 	-DGODOTCPP_TARGET="$TARGET"
+	-DXDG_PORTALS_WERROR="$([[ "$WERROR" -eq 1 ]] && echo ON || echo OFF)"
+	-DXDG_PORTALS_SANITIZE="$([[ "$SANITIZE" -eq 1 ]] && echo ON || echo OFF)"
 )
 if [[ -n "$GODOT_CPP_PATH" ]]; then
 	CONFIGURE_ARGS+=(-DXDG_PORTALS_GODOT_CPP_PATH="$GODOT_CPP_PATH")
 fi
 
 cmake "${CONFIGURE_ARGS[@]}"
+# The normal and --sanitize builds write the same output file from different
+# build directories, so whichever ran last would look up to date to the other
+# and never be relinked. Removing it first forces the link; nothing recompiles.
+case "$(uname -s)" in
+	Darwin) OUTPUT_NAME="libxdg_portals.macos.$TARGET.dylib" ;;
+	*)
+		case "$(uname -m)" in
+			aarch64|arm64) OUTPUT_ARCH="arm64" ;;
+			*) OUTPUT_ARCH="$(uname -m)" ;;
+		esac
+		OUTPUT_NAME="libxdg_portals.linux.$TARGET.$OUTPUT_ARCH.so"
+		;;
+esac
+rm -f "$REPO_ROOT/addons/xdg_portals/bin/$OUTPUT_NAME"
+
 cmake --build "$BUILD_DIR" --parallel "$JOBS"
 
 echo

@@ -12,7 +12,14 @@
 #include <godot_cpp/variant/array.hpp>
 #include <godot_cpp/variant/utility_functions.hpp>
 
+#include <array>
 #include <chrono>
+#include <condition_variable>
+#include <cstdint>
+#include <functional>
+#include <memory>
+#include <mutex>
+#include <utility>
 
 using namespace godot;
 
@@ -27,11 +34,11 @@ bool debug_enabled() {
 	return enabled;
 }
 
-#define XDGP_LOG(...)                          \
-	do {                                       \
-		if (debug_enabled()) {                 \
+#define XDGP_LOG(...)                                 \
+	do {                                              \
+		if (debug_enabled()) {                        \
 			g_printerr("[xdg_portals] " __VA_ARGS__); \
-		}                                      \
+		}                                             \
 	} while (0)
 
 // One unit of work marshalled onto the worker thread.
@@ -58,10 +65,10 @@ struct WorkerTask {
 };
 
 gboolean run_worker_task(gpointer p_data) {
-	std::shared_ptr<WorkerTask> *task = static_cast<std::shared_ptr<WorkerTask> *>(p_data);
+	const auto *task = static_cast<std::shared_ptr<WorkerTask> *>(p_data);
 	(*task)->work();
 	{
-		std::lock_guard<std::mutex> guard((*task)->mutex);
+		const std::scoped_lock guard((*task)->mutex);
 		(*task)->done = true;
 	}
 	(*task)->finished.notify_all();
@@ -170,8 +177,12 @@ bool XdgPortalNative::connect_bus() {
 		return false;
 	}
 
+	// GDBusConnectionFlags is a bit-flag enum, so an OR of two flags is valid
+	// even though no single enumerator equals it. GLib before 2.88 does not mark
+	// it G_GNUC_FLAG_ENUM (Ubuntu 24.04 ships 2.80), and without that the
+	// analyzer cannot tell.
 	connection = g_dbus_connection_new_for_address_sync(address,
-			static_cast<GDBusConnectionFlags>(G_DBUS_CONNECTION_FLAGS_AUTHENTICATION_CLIENT |
+			static_cast<GDBusConnectionFlags>(G_DBUS_CONNECTION_FLAGS_AUTHENTICATION_CLIENT | // NOLINT(clang-analyzer-optin.core.EnumCastOutOfRange)
 					G_DBUS_CONNECTION_FLAGS_MESSAGE_BUS_CONNECTION),
 			nullptr, cancellable, &error);
 	g_free(address);
@@ -236,7 +247,7 @@ void XdgPortalNative::teardown() {
 	}
 
 	if (connection != nullptr) {
-		std::lock_guard<std::mutex> guard(state_mutex);
+		const std::scoped_lock guard(state_mutex);
 		for (const auto &entry : request_subscriptions) {
 			g_dbus_connection_signal_unsubscribe(connection, entry.second);
 		}
@@ -351,7 +362,7 @@ int XdgPortalNative::read_interface_version(const char *p_interface) {
 
 Dictionary XdgPortalNative::get_interface_versions() {
 	Dictionary versions;
-	static const char *const interfaces[] = {
+	static constexpr std::array<const char *, 5> interfaces = {
 		IFACE_GAME_MODE,
 		IFACE_INHIBIT,
 		IFACE_POWER_PROFILE_MONITOR,
@@ -415,7 +426,7 @@ String XdgPortalNative::prepare_request(String &r_token) {
 
 	guint counter = 0;
 	{
-		std::lock_guard<std::mutex> guard(state_mutex);
+		const std::scoped_lock guard(state_mutex);
 		counter = ++handle_counter;
 	}
 	r_token = vformat("godot_xdg_%d_%d", static_cast<int64_t>(counter),
@@ -427,7 +438,7 @@ String XdgPortalNative::prepare_request(String &r_token) {
 }
 
 void XdgPortalNative::subscribe_request(const String &p_handle) {
-	std::shared_ptr<guint> id = std::make_shared<guint>(0);
+	const auto id = std::make_shared<guint>(0);
 	run_on_worker([this, p_handle, id]() {
 		*id = g_dbus_connection_signal_subscribe(connection, PORTAL_BUS_NAME,
 				IFACE_REQUEST, "Response", p_handle.utf8().get_data(), nullptr,
@@ -437,14 +448,14 @@ void XdgPortalNative::subscribe_request(const String &p_handle) {
 	if (*id == 0) {
 		return;
 	}
-	std::lock_guard<std::mutex> guard(state_mutex);
+	const std::scoped_lock guard(state_mutex);
 	request_subscriptions[p_handle] = *id;
 }
 
 void XdgPortalNative::unsubscribe_request(const String &p_handle) {
 	guint id = 0;
 	{
-		std::lock_guard<std::mutex> guard(state_mutex);
+		const std::scoped_lock guard(state_mutex);
 		const auto it = request_subscriptions.find(p_handle);
 		if (it == request_subscriptions.end()) {
 			return;
@@ -459,7 +470,7 @@ void XdgPortalNative::unsubscribe_request(const String &p_handle) {
 
 void XdgPortalNative::call_portal_async(const char *p_interface, const char *p_method,
 		GVariant *p_params, const String &p_handle, const char *p_context) {
-	RequestCallContext *payload = new RequestCallContext();
+	auto *payload = new RequestCallContext();
 	payload->owner = this;
 	payload->handle = p_handle;
 	payload->context = String::utf8(p_context);
@@ -476,7 +487,7 @@ void XdgPortalNative::call_portal_async(const char *p_interface, const char *p_m
 }
 
 void XdgPortalNative::on_request_call_finished(GObject *p_source, GAsyncResult *p_result, gpointer p_user_data) {
-	RequestCallContext *payload = static_cast<RequestCallContext *>(p_user_data);
+	const auto *payload = static_cast<RequestCallContext *>(p_user_data);
 	XdgPortalNative *self = payload->owner;
 
 	GError *error = nullptr;
@@ -508,7 +519,7 @@ void XdgPortalNative::on_request_call_finished(GObject *p_source, GAsyncResult *
 		if (actual_handle != payload->handle) {
 			self->unsubscribe_request(payload->handle);
 			{
-				std::lock_guard<std::mutex> guard(self->state_mutex);
+				const std::scoped_lock guard(self->state_mutex);
 				self->actual_request_paths[payload->handle] = actual_handle;
 				self->public_request_handles[actual_handle] = payload->handle;
 				if (payload->context == "Inhibit.Inhibit") {
@@ -522,9 +533,10 @@ void XdgPortalNative::on_request_call_finished(GObject *p_source, GAsyncResult *
 	delete payload;
 }
 
-void XdgPortalNative::on_request_response(GDBusConnection *, const gchar *, const gchar *p_path,
-		const gchar *, const gchar *, GVariant *p_parameters, gpointer p_user_data) {
-	XdgPortalNative *self = static_cast<XdgPortalNative *>(p_user_data);
+void XdgPortalNative::on_request_response(GDBusConnection * /*p_connection*/, const gchar * /*p_sender*/,
+		const gchar *p_path, const gchar * /*p_interface*/, const gchar * /*p_signal*/, GVariant *p_parameters,
+		gpointer p_user_data) {
+	auto *self = static_cast<XdgPortalNative *>(p_user_data);
 	XDGP_LOG("Response received on %s\n", p_path);
 	if (self->shutting_down.load()) {
 		return;
@@ -542,7 +554,7 @@ void XdgPortalNative::on_request_response(GDBusConnection *, const gchar *, cons
 	const String actual_handle = String::utf8(p_path);
 	String public_handle = actual_handle;
 	{
-		std::lock_guard<std::mutex> guard(self->state_mutex);
+		const std::scoped_lock guard(self->state_mutex);
 		const auto it = self->public_request_handles.find(actual_handle);
 		if (it != self->public_request_handles.end()) {
 			public_handle = it->second;
@@ -569,7 +581,7 @@ String XdgPortalNative::inhibit(int p_flags, const String &p_reason, const Strin
 	}
 
 	String token;
-	const String handle = prepare_request(token);
+	String handle = prepare_request(token);
 	if (handle.is_empty()) {
 		return String();
 	}
@@ -593,7 +605,7 @@ bool XdgPortalNative::close_request(const String &p_handle) {
 
 	String actual_handle = p_handle;
 	{
-		std::lock_guard<std::mutex> guard(state_mutex);
+		const std::scoped_lock guard(state_mutex);
 		const auto it = actual_request_paths.find(p_handle);
 		if (it != actual_request_paths.end()) {
 			actual_handle = it->second;
@@ -614,7 +626,7 @@ bool XdgPortalNative::close_request(const String &p_handle) {
 	g_variant_unref(reply);
 	unsubscribe_request(actual_handle);
 	{
-		std::lock_guard<std::mutex> guard(state_mutex);
+		const std::scoped_lock guard(state_mutex);
 		actual_request_paths.erase(p_handle);
 		public_request_handles.erase(actual_handle);
 		inhibit_request_handles.erase(p_handle);
@@ -640,7 +652,7 @@ void XdgPortalNative::refresh_power_saver() {
 	if (boxed != nullptr) {
 		const Variant value = gvariant_to_variant(boxed);
 		if (value.get_type() == Variant::BOOL) {
-			std::lock_guard<std::mutex> guard(state_mutex);
+			const std::scoped_lock guard(state_mutex);
 			power_saver_known = true;
 			power_saver_enabled = static_cast<bool>(value);
 		}
@@ -649,9 +661,10 @@ void XdgPortalNative::refresh_power_saver() {
 	g_variant_unref(reply);
 }
 
-void XdgPortalNative::on_properties_changed(GDBusConnection *, const gchar *, const gchar *,
-		const gchar *, const gchar *, GVariant *p_parameters, gpointer p_user_data) {
-	XdgPortalNative *self = static_cast<XdgPortalNative *>(p_user_data);
+void XdgPortalNative::on_properties_changed(GDBusConnection * /*p_connection*/, const gchar * /*p_sender*/,
+		const gchar * /*p_path*/, const gchar * /*p_interface*/, const gchar * /*p_signal*/,
+		GVariant *p_parameters, gpointer p_user_data) {
+	auto *self = static_cast<XdgPortalNative *>(p_user_data);
 	if (self->shutting_down.load()) {
 		return;
 	}
@@ -667,7 +680,7 @@ void XdgPortalNative::on_properties_changed(GDBusConnection *, const gchar *, co
 			const bool enabled = g_variant_get_boolean(value);
 			bool changed_state = false;
 			{
-				std::lock_guard<std::mutex> guard(self->state_mutex);
+				const std::scoped_lock guard(self->state_mutex);
 				changed_state = !self->power_saver_known || self->power_saver_enabled != enabled;
 				self->power_saver_known = true;
 				self->power_saver_enabled = enabled;
@@ -688,7 +701,7 @@ void XdgPortalNative::on_properties_changed(GDBusConnection *, const gchar *, co
 }
 
 int XdgPortalNative::power_saver_state() {
-	std::lock_guard<std::mutex> guard(state_mutex);
+	const std::scoped_lock guard(state_mutex);
 	if (!power_saver_known) {
 		return -1;
 	}
@@ -702,7 +715,7 @@ String XdgPortalNative::open_uri(const String &p_uri, bool p_ask, const String &
 		return String();
 	}
 
-	const int separator = p_uri.find(":");
+	const int64_t separator = p_uri.find(":");
 	if (separator <= 0) {
 		emit_error("OpenURI.OpenURI", "The URI has no scheme.");
 		return String();
@@ -719,7 +732,7 @@ String XdgPortalNative::open_uri(const String &p_uri, bool p_ask, const String &
 	}
 
 	String token;
-	const String handle = prepare_request(token);
+	String handle = prepare_request(token);
 	if (handle.is_empty()) {
 		return String();
 	}
@@ -802,9 +815,10 @@ bool XdgPortalNative::remove_notification(const String &p_id) {
 	return true;
 }
 
-void XdgPortalNative::on_action_invoked(GDBusConnection *, const gchar *, const gchar *,
-		const gchar *, const gchar *, GVariant *p_parameters, gpointer p_user_data) {
-	XdgPortalNative *self = static_cast<XdgPortalNative *>(p_user_data);
+void XdgPortalNative::on_action_invoked(GDBusConnection * /*p_connection*/, const gchar * /*p_sender*/,
+		const gchar * /*p_path*/, const gchar * /*p_interface*/, const gchar * /*p_signal*/,
+		GVariant *p_parameters, gpointer p_user_data) {
+	auto *self = static_cast<XdgPortalNative *>(p_user_data);
 	if (self->shutting_down.load()) {
 		return;
 	}

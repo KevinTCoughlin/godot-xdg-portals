@@ -39,11 +39,15 @@ func test_null_backend_reports_unavailable() -> void:
 
 func test_null_backend_reports_unknown_state_honestly() -> void:
 	portal.set_backend(DesktopServicesNullBackend.new())
-	assert_eq(portal.query_game_mode(), DesktopServicesTestCase.FACADE_SCRIPT.GameModeStatus.UNKNOWN)
+	assert_eq(
+		portal.query_game_mode(), DesktopServicesTestCase.FACADE_SCRIPT.GameModeStatus.UNKNOWN
+	)
 	assert_null(portal.is_power_saver_enabled(), "unknown power state is null")
 	assert_null(portal.is_scheme_supported("https"), "unknown scheme support is null")
 	assert_eq(portal.inhibit(8, "reason"), "", "an unavailable inhibit yields no handle")
-	assert_eq(portal.open_uri("https://godotengine.org"), "", "an unavailable open yields no handle")
+	assert_eq(
+		portal.open_uri("https://godotengine.org"), "", "an unavailable open yields no handle"
+	)
 	assert_false(portal.request_game_mode(), "an unavailable operation is never a success")
 	assert_false(portal.add_notification("id", "title"), "an unavailable notification fails")
 	assert_false(portal.remove_notification("id"), "an unavailable removal fails")
@@ -62,8 +66,11 @@ func test_backend_is_selected_before_ready_runs() -> void:
 	# autoload reached from another autoload's `_ready()` saw no backend at all
 	# and reported the "none" backend instead of degrading to the null one.
 	var standalone: Node = DesktopServicesTestCase.FACADE_SCRIPT.new()
-	assert_ne(standalone.get_backend_name(), "none",
-		"a facade outside the tree must still choose a backend")
+	assert_ne(
+		standalone.get_backend_name(),
+		"none",
+		"a facade outside the tree must still choose a backend"
+	)
 	assert_not_null(standalone.get_backend())
 	standalone.free()
 
@@ -72,8 +79,10 @@ func test_null_backend_reason_reaches_the_facade() -> void:
 	# Regression: the null backend carried its reason in a plain field the facade
 	# never read, so every unavailable session reported the same generic text.
 	var backend := DesktopServicesNullBackend.new("headless session, no D-Bus")
-	assert_true(backend.has_method("get_unavailable_reason"),
-		"the facade discovers the reason through this method")
+	assert_true(
+		backend.has_method("get_unavailable_reason"),
+		"the facade discovers the reason through this method"
+	)
 	portal.set_backend(backend)
 	assert_eq(portal.get_unavailable_reason(), "headless session, no D-Bus")
 

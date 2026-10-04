@@ -9,7 +9,9 @@ const Facade := DesktopServicesTestCase.FACADE_SCRIPT
 
 
 func test_add_notification_forwards_every_field() -> void:
-	assert_true(portal.add_notification("save", "Saved", "Chapter 3", Facade.NotificationPriority.HIGH))
+	assert_true(
+		portal.add_notification("save", "Saved", "Chapter 3", Facade.NotificationPriority.HIGH)
+	)
 	var args: Array = mock.calls_to("add_notification")[0]["args"]
 	assert_eq(args[0], "save")
 	assert_eq(args[1], "Saved")
@@ -44,8 +46,10 @@ func test_add_notification_rejects_an_empty_id() -> void:
 
 func test_add_notification_reports_backend_failure() -> void:
 	mock.next_notification_succeeds = false
-	assert_false(portal.add_notification("save", "Saved"),
-		"a failed AddNotification is never reported as posted")
+	assert_false(
+		portal.add_notification("save", "Saved"),
+		"a failed AddNotification is never reported as posted"
+	)
 
 
 func test_remove_notification_forwards_the_id() -> void:

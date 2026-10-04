@@ -41,8 +41,19 @@ jobs:
           path: build-${{ matrix.target }}/_deps
           key: godot-cpp-${{ matrix.arch }}-${{ matrix.target }}-${{ hashFiles('CMakeLists.txt') }}
 
+      # CI holds the code to every warning; source builds default to OFF.
       - name: Build
-        run: ./scripts/build.sh --target ${{ matrix.target }}
+        run: ./scripts/build.sh --target ${{ matrix.target }} --werror
+
+      # Reuses this build's compile_commands.json. One configuration is
+      # enough: the analysed sources do not vary by target or architecture.
+      - name: Install uv
+        if: matrix.target == 'editor' && matrix.arch == 'x86_64'
+        uses: astral-sh/setup-uv@v10.2.0
+
+      - name: clang-tidy
+        if: matrix.target == 'editor' && matrix.arch == 'x86_64'
+        run: ./scripts/check.sh clang-tidy
 
       - name: Verify the library exports the GDExtension entry point
         run: |
@@ -174,8 +185,70 @@ jobs:
       - name: Run the native smoke test
         run: ./scripts/run_native_smoke.sh
 
+  sanitizers:
+    name: Native smoke test under ASan + UBSan
+    runs-on: ubuntu-24.04
+    env:
+      GODOT_VERSIONS: 4.4.1 4.7.2
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install build and D-Bus dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y \
+            build-essential cmake pkg-config libglib2.0-dev dbus
+
+      - name: Install Godot
+        run: |
+          set -euo pipefail
+          for version in $GODOT_VERSIONS; do
+            archive="Godot_v${version}-stable_linux.x86_64"
+            url="https://github.com/godotengine/godot/releases/download/${version}-stable/${archive}.zip"
+            curl --fail --location --silent --show-error --output godot.zip "$url"
+            unzip -q godot.zip
+            chmod +x "$archive"
+            sudo mv "$archive" "/usr/local/bin/godot-${version}"
+            rm godot.zip
+          done
+
+      - name: Cache godot-cpp checkout
+        uses: actions/cache@v6
+        with:
+          path: build-editor-sanitize/_deps
+          key: godot-cpp-x86_64-editor-sanitize-${{ hashFiles('CMakeLists.txt') }}
+
+      - name: Build the editor-target library with ASan and UBSan
+        run: ./scripts/build.sh --target editor --sanitize --werror
+
+      # Godot is not instrumented, so the script preloads the ASan runtime into
+      # it (and a shim that lets it load an extension; see
+      # tests/native/sanitizer_preload.c). Leak checking is on, with the
+      # documented suppressions in tests/native/lsan.supp.
+      - name: Run the native smoke test under the sanitizers
+        run: |
+          set -euo pipefail
+          for version in $GODOT_VERSIONS; do
+            echo "::group::Godot ${version}"
+            GODOT="godot-${version}" ./scripts/run_native_smoke.sh --sanitize
+            echo "::endgroup::"
+          done
+
+  lint:
+    name: Formatting and lint (clang-format, gdformat, gdlint)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10.2.0
+      # Tool versions are pinned in scripts/check.sh and run through uvx, so
+      # these match a local `scripts/check.sh lint` exactly.
+      - name: clang-format
+        run: ./scripts/check.sh clang-format
+      - name: gdformat and gdlint
+        run: ./scripts/check.sh gdscript
+
   scripts:
-    name: Shell script syntax
+    name: Shell scripts (bash -n, shellcheck)
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
@@ -186,6 +259,9 @@ jobs:
             bash -n "$script"
             echo "ok $script"
           done
+      - uses: astral-sh/setup-uv@v10.2.0
+      - name: shellcheck
+        run: ./scripts/check.sh shell
 
   reuse:
     name: REUSE compliance

@@ -45,11 +45,63 @@ For Zed, VS Code and an optional per-clone Delta pager setup, see
 Run all of it. CI runs the same things, and a red CI costs a review round.
 
 ```bash
+./scripts/check.sh check                  # all of the below, in order
+```
+
+which is:
+
+```bash
+./scripts/build.sh --target editor --werror
+./scripts/check.sh lint                   # formatting, linters, REUSE
 ./scripts/run_tests.sh                    # mock-backed suite, no bus needed
-./scripts/build.sh --target editor
 ./scripts/run_native_smoke.sh             # native backend vs. the fake portal
-bash -n scripts/*.sh
-reuse lint                                # pipx install reuse
+```
+
+If you touched `src/`, also run the smoke test under the sanitizers, as CI does
+(see [`docs/native-testing.md`](docs/native-testing.md)):
+
+```bash
+./scripts/build.sh --target editor --sanitize
+./scripts/run_native_smoke.sh --sanitize
+./scripts/build.sh --target editor        # restore the normal library
+```
+
+## Formatting and static analysis
+
+`scripts/check.sh` runs every tool through `uvx` at a version pinned in the
+script, so local results match CI exactly. The only prerequisite is
+[uv](https://docs.astral.sh/uv/).
+
+| Command | What it does |
+| --- | --- |
+| `scripts/check.sh format` | Rewrites C/C++ with clang-format and GDScript with gdformat. |
+| `scripts/check.sh lint` | Checks formatting (clang-format, gdformat), then runs gdlint, `bash -n`, shellcheck, `reuse lint` and clang-tidy. |
+| `scripts/check.sh check` | Builds the editor target with `-Werror`, lints, and runs both test suites. |
+
+Single steps are also available: `clang-format`, `clang-tidy`, `gdscript`,
+`shell` and `reuse`.
+
+- **clang-format** follows `.clang-format`, which encodes the Godot engine's
+  layout. `mac_power_monitor.mm` is not formatted.
+- **clang-tidy** reads `.clang-tidy` and needs the
+  `build-editor/compile_commands.json` that `scripts/build.sh --target editor`
+  exports. It is Linux-only. Each disabled check is listed in `.clang-tidy`
+  with its reason; fix a finding, or add a `NOLINT(check)` with a reason at
+  the one site, rather than disabling a check.
+- **Compiler warnings**: the extension builds with `-Wall -Wextra -Wpedantic`
+  plus `-Wshadow`, `-Wconversion`, `-Wold-style-cast` and others (see
+  `CMakeLists.txt`). `--werror` (CMake `XDG_PORTALS_WERROR`) makes them errors.
+  It defaults to off so a newer compiler cannot break a source build; CI
+  turns it on.
+- **gdlint** reads `gdlintrc`; its deviations from the gdtoolkit defaults are
+  explained there.
+- **shellcheck** covers `scripts/*.sh`.
+
+The commits that first applied clang-format and gdformat are listed in
+`.git-blame-ignore-revs`. To have `git blame` skip them locally:
+
+```bash
+git config blame.ignoreRevsFile .git-blame-ignore-revs
 ```
 
 If your change touches the native backend and you have a graphical Linux

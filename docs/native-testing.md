@@ -57,6 +57,39 @@ that.
 What it does **not** prove: that a real portal implementation behaves the way the
 fixture does.
 
+### Under AddressSanitizer and UBSan (runs in CI)
+
+```bash
+./scripts/build.sh --target editor --sanitize
+./scripts/run_native_smoke.sh --sanitize
+./scripts/build.sh --target editor        # put the normal library back afterwards
+```
+
+The same smoke test, against a library built with
+`-fsanitize=address,undefined` (CMake option `XDG_PORTALS_SANITIZE`). It catches
+use-after-free, overflows and undefined behaviour on every path above, and —
+with leak checking on — any `GVariant`, `GError` or other GLib allocation the
+extension forgets to release.
+
+Godot itself is not instrumented, so the script preloads the ASan runtime into
+the Godot process only. Two things make that work, both in the test-only shim
+`tests/native/sanitizer_preload.c`, which is preloaded ahead of the runtime:
+
+- Godot opens extensions with `RTLD_DEEPBIND`, which the ASan runtime refuses
+  ([google/sanitizers#611](https://github.com/google/sanitizers/issues/611)).
+  The shim strips the flag before ASan's own `dlopen()` sees it.
+- Godot unloads extensions before LeakSanitizer runs at exit, which would leave
+  the extension's frames in a leak report as `<unknown module>`. The shim makes
+  `dlclose()` a no-op so reports name a line in `src/`.
+
+Because ASan sees every allocation in the process, leaks in code this project
+does not own are suppressed in `tests/native/lsan.supp`, each with its reason.
+GLib is deliberately never suppressed wholesale.
+
+With GCC the runtime is found through `ldd`. With Clang, build with
+`CC=clang CXX=clang++` and the script asks the compiler for its runtime's path;
+set `XDG_PORTALS_ASAN_RUNTIME` if neither finds it.
+
 ## Tier 3 — the desktop checklist (cannot run in CI)
 
 These checks need a graphical Linux session with a running

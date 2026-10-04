@@ -1,8 +1,8 @@
 # SPDX-FileCopyrightText: 2026 Kevin Coughlin
 #
 # SPDX-License-Identifier: MIT
-extends RefCounted
 class_name DesktopServicesBackend
+extends RefCounted
 
 ## Backend contract used by the [code]DesktopServices[/code] facade.
 ##
@@ -23,13 +23,16 @@ signal notification_action_invoked(id: String, action: String, parameters: Array
 ## Emitted when a portal call fails. [param context] is the D-Bus member that failed.
 signal portal_error(context: String, message: String)
 
+
 ## Short identifier used for diagnostics, e.g. [code]"native"[/code].
 func get_backend_name() -> String:
 	return "abstract"
 
+
 ## Whether portal calls can be attempted at all.
 func is_available() -> bool:
 	return false
+
 
 ## Maps [code]DesktopServices.Capability[/code] values to whether this backend
 ## can serve them. A capability missing from the dictionary is unavailable, so
@@ -39,6 +42,7 @@ func is_available() -> bool:
 ## Every backend can answer it, whatever it is built on.
 func get_capabilities() -> Dictionary:
 	return {}
+
 
 ## Version of the portal interface behind [param _capability], or [code]-1[/code].
 ##
@@ -50,21 +54,26 @@ func get_capabilities() -> Dictionary:
 func get_interface_version(_capability: int) -> int:
 	return -1
 
+
 ## Returns an [code]DesktopServices.GameModeStatus[/code] value.
 func game_mode_query_status(_pid: int) -> int:
 	return -1
+
 
 ## Returns 0 on success and -1 on failure, matching the portal interface.
 func game_mode_register(_pid: int) -> int:
 	return -1
 
+
 ## Returns 0 on success and -1 on failure, matching the portal interface.
 func game_mode_unregister(_pid: int) -> int:
 	return -1
 
+
 ## Returns the request handle, or an empty string when nothing was started.
 func inhibit(_flags: int, _reason: String, _parent_window: String) -> String:
 	return ""
+
 
 ## Mask of the [code]DesktopServices.InhibitFlags[/code] bits this backend can ask for.
 ##
@@ -76,28 +85,35 @@ func inhibit(_flags: int, _reason: String, _parent_window: String) -> String:
 func get_supported_inhibit_flags() -> int:
 	return 0
 
+
 ## Closes a pending request handle.
 func close_request(_handle: String) -> bool:
 	return false
+
 
 ## -1 unknown, 0 disabled, 1 enabled.
 func power_saver_state() -> int:
 	return -1
 
+
 ## Returns the request handle, or an empty string when nothing was started.
 func open_uri(_uri: String, _ask: bool, _parent_window: String) -> String:
 	return ""
+
 
 ## -1 unknown, 0 unsupported, 1 supported.
 func scheme_supported(_scheme: String) -> int:
 	return -1
 
+
 ## [param priority] is one of "low", "normal", "high" or "urgent".
 func add_notification(_id: String, _title: String, _body: String, _priority: String) -> bool:
 	return false
 
+
 func remove_notification(_id: String) -> bool:
 	return false
+
 
 ## Releases any native resources held by the backend.
 func shutdown() -> void:

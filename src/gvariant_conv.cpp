@@ -7,11 +7,15 @@
 #include <godot_cpp/variant/array.hpp>
 #include <godot_cpp/variant/string.hpp>
 
+#include <cstdint>
+
 using namespace godot;
 
 namespace xdg_portals {
 
-static bool is_string_keyed_dict(GVariant *p_variant) {
+namespace {
+
+bool is_string_keyed_dict(GVariant *p_variant) {
 	const GVariantType *type = g_variant_get_type(p_variant);
 	if (!g_variant_type_is_subtype_of(type, G_VARIANT_TYPE("a{?*}"))) {
 		return false;
@@ -23,6 +27,12 @@ static bool is_string_keyed_dict(GVariant *p_variant) {
 			g_variant_type_equal(key, G_VARIANT_TYPE_SIGNATURE);
 }
 
+} // namespace
+
+// The recursion follows the value's own nesting, which is bounded: every value
+// converted here arrived over the bus, and GDBus rejects messages nested deeper
+// than the D-Bus specification's limit of 64 containers.
+// NOLINTNEXTLINE(misc-no-recursion)
 Variant gvariant_to_variant(GVariant *p_variant) {
 	if (p_variant == nullptr) {
 		return Variant();
@@ -48,7 +58,7 @@ Variant gvariant_to_variant(GVariant *p_variant) {
 			// D-Bus `t` can exceed int64; clamping is preferable to wrapping.
 			{
 				const guint64 value = g_variant_get_uint64(p_variant);
-				const guint64 limit = static_cast<guint64>(INT64_MAX);
+				const auto limit = static_cast<guint64>(INT64_MAX);
 				return Variant(static_cast<int64_t>(value > limit ? limit : value));
 			}
 		case G_VARIANT_CLASS_HANDLE:
@@ -94,6 +104,7 @@ Variant gvariant_to_variant(GVariant *p_variant) {
 	}
 }
 
+// NOLINTNEXTLINE(misc-no-recursion): bounded as above.
 Dictionary gvariant_dict_to_dictionary(GVariant *p_variant) {
 	Dictionary dictionary;
 	if (p_variant == nullptr || !is_string_keyed_dict(p_variant)) {

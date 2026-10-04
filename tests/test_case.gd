@@ -1,8 +1,8 @@
 # SPDX-FileCopyrightText: 2026 Kevin Coughlin
 #
 # SPDX-License-Identifier: MIT
-extends RefCounted
 class_name DesktopServicesTestCase
+extends RefCounted
 
 ## Minimal assertion base class for the mock-backed suite.
 ##
@@ -16,6 +16,7 @@ var failures: PackedStringArray = []
 
 var portal: Node = null
 var mock: DesktopServicesMockBackend = null
+var _sinks: Array = []
 
 
 ## Runs before every test method.
@@ -77,9 +78,6 @@ func capture(source: Object, signal_name: String) -> Array:
 	# The sink must outlive the connection, so the test case keeps a reference.
 	_sinks.append(sink)
 	return recorded
-
-
-var _sinks: Array = []
 
 
 func _values_equal(a: Variant, b: Variant) -> bool:

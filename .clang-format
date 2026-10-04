@@ -1,0 +1,37 @@
+# SPDX-FileCopyrightText: 2026 Kevin Coughlin
+#
+# SPDX-License-Identifier: MIT
+#
+# Mirrors the Godot engine's own .clang-format, which this code base has
+# followed by hand from the start: tabs, an 8-column continuation indent, no
+# column limit (line breaks stay the author's), and spaces inside braced
+# initialisers. CI pins the clang-format release (see scripts/check.sh), because
+# different releases format the same input differently.
+BasedOnStyle: LLVM
+AccessModifierOffset: -4
+AlignAfterOpenBracket: DontAlign
+AlignOperands: DontAlign
+AlignTrailingComments:
+  Kind: Never
+AllowAllParametersOfDeclarationOnNextLine: false
+AllowShortFunctionsOnASingleLine: Inline
+AllowShortLambdasOnASingleLine: Inline
+BreakConstructorInitializers: AfterColon
+ColumnLimit: 0
+ConstructorInitializerIndentWidth: 8
+ContinuationIndentWidth: 8
+Cpp11BracedListStyle: false
+IndentCaseLabels: true
+IndentWidth: 4
+InsertBraces: true
+KeepEmptyLines:
+  AtStartOfBlock: false
+PackConstructorInitializers: NextLine
+Standard: c++17
+TabWidth: 4
+UseTab: Always
+---
+# mac_power_monitor.mm mixes Objective-C blocks and ARC bridge casts; it is
+# built only on macOS and is not reformatted (see scripts/check.sh).
+Language: ObjC
+DisableFormat: true

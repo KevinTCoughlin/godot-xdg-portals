@@ -1,8 +1,8 @@
 # SPDX-FileCopyrightText: 2026 Kevin Coughlin
 #
 # SPDX-License-Identifier: MIT
-extends DesktopServicesBackend
 class_name DesktopServicesNullBackend
+extends DesktopServicesBackend
 
 ## Backend used wherever desktop portals cannot exist: Windows, macOS, mobile,
 ## web, and Linux sessions without a reachable session bus.
@@ -30,7 +30,6 @@ func get_backend_name() -> String:
 ## either backend the same question.
 func get_unavailable_reason() -> String:
 	return reason
-
 
 # Every capability is absent here, which is exactly the contract's default, so
 # get_capabilities() and get_interface_version() are deliberately not overridden.

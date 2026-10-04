@@ -68,8 +68,11 @@ func test_inhibit_rejects_out_of_range_flags() -> void:
 
 func test_inhibit_returns_empty_handle_when_the_call_cannot_start() -> void:
 	mock.next_request_succeeds = false
-	assert_eq(portal.inhibit(Facade.InhibitFlags.SUSPEND, "Boss fight"), "",
-		"a failed start is never reported as a live inhibition")
+	assert_eq(
+		portal.inhibit(Facade.InhibitFlags.SUSPEND, "Boss fight"),
+		"",
+		"a failed start is never reported as a live inhibition"
+	)
 
 
 func test_missing_capability_skips_the_backend() -> void:
@@ -108,5 +111,8 @@ func test_request_completed_is_forwarded_with_results() -> void:
 func test_cancelled_requests_are_forwarded_as_cancelled() -> void:
 	var emissions := capture(portal, "request_completed")
 	mock.complete_request("/handle", Facade.Response.CANCELLED)
-	assert_eq(emissions[0][1], Facade.Response.CANCELLED,
-		"a user-dismissed request is never reported as a success")
+	assert_eq(
+		emissions[0][1],
+		Facade.Response.CANCELLED,
+		"a user-dismissed request is never reported as a success"
+	)
