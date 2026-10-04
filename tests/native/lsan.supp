@@ -1,0 +1,17 @@
+# SPDX-FileCopyrightText: 2026 Kevin Coughlin
+#
+# SPDX-License-Identifier: MIT
+#
+# LeakSanitizer suppressions for `scripts/run_native_smoke.sh --sanitize`.
+#
+# The ASan runtime is preloaded into an uninstrumented Godot, so it sees every
+# allocation in the process, not just this extension's. Suppress only leaks
+# that cannot involve this project's code, and say why for each entry. Never
+# suppress GLib or GIO wholesale: a GVariant or GError this extension forgets
+# to free is allocated inside GLib, and that is exactly what the job is for.
+# A suppression matches when the pattern appears in any frame of the stack.
+
+# Godot's font backend leaks fontconfig patterns when it enumerates system
+# fonts (seen with the official 4.4.1 binary, which dlopens fontconfig). The
+# extension never calls fontconfig.
+leak:libfontconfig.so

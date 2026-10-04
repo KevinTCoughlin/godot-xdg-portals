@@ -130,6 +130,29 @@ if(XDG_PORTALS_WERROR)
     target_compile_options(xdg_portals PRIVATE -Werror)
 endif()
 
+# AddressSanitizer + UndefinedBehaviorSanitizer for the native smoke test. The
+# Godot binary is not instrumented, so the ASan runtime has to be preloaded
+# into it; scripts/run_native_smoke.sh --sanitize does that. Linux only.
+option(XDG_PORTALS_SANITIZE "Build with AddressSanitizer and UBSan (Linux only)" OFF)
+if(XDG_PORTALS_SANITIZE)
+    if(NOT XDG_PORTALS_PLATFORM STREQUAL "linux")
+        message(FATAL_ERROR "XDG_PORTALS_SANITIZE is supported on Linux only.")
+    endif()
+    set(XDG_PORTALS_SANITIZER_FLAGS
+        -fsanitize=address,undefined
+        -fno-sanitize-recover=undefined
+        -fno-omit-frame-pointer
+    )
+    target_compile_options(xdg_portals PRIVATE ${XDG_PORTALS_SANITIZER_FLAGS})
+    # GCC records libasan/libubsan as dependencies of the library. Clang would
+    # leave the runtime out of a shared library altogether; ask for the shared
+    # runtime, with an rpath to it, so the smoke script can find it with ldd.
+    if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+        list(APPEND XDG_PORTALS_SANITIZER_FLAGS -shared-libsan -frtlib-add-rpath)
+    endif()
+    target_link_options(xdg_portals PRIVATE ${XDG_PORTALS_SANITIZER_FLAGS})
+endif()
+
 # Godot resolves libraries by the `<name>.<platform>.<target>.<arch>` convention
 # declared in addons/xdg_portals/xdg_portals.gdextension.
 if(CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" OR CMAKE_SYSTEM_PROCESSOR STREQUAL "AMD64")
