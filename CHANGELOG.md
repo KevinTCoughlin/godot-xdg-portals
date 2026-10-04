@@ -14,6 +14,11 @@ Before 1.0 the public API may change in a minor release.
   with release, debug and editor libraries and a SHA-256 checksum.
 - Shared EditorConfig, Zed and VS Code project settings, plus optional Delta
   setup instructions for contributors.
+- Static analysis and runtime checking, enforced in CI: clang-format,
+  clang-tidy, stricter compiler warnings with an opt-in `XDG_PORTALS_WERROR`,
+  gdformat and gdlint, shellcheck, and the native smoke test under
+  AddressSanitizer + UBSan (`XDG_PORTALS_SANITIZE`). `scripts/check.sh`
+  runs the same checks locally.
 
 - **Experimental macOS backend**, covering power-saver state only. A
   `MacPowerMonitor` GDExtension class reads `-[NSProcessInfo

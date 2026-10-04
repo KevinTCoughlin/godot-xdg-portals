@@ -1,0 +1,13 @@
+# SPDX-FileCopyrightText: 2026 Kevin Coughlin
+#
+# SPDX-License-Identifier: MIT
+#
+# Purely mechanical reformatting commits, skipped by `git blame` on GitHub and,
+# locally, after `git config blame.ignoreRevsFile .git-blame-ignore-revs`.
+# Each entry must be the SHA as it exists on main.
+
+# Apply clang-format to the C and C++ sources
+72c1a47cfdaabe855a85e314643c21cec6205a7f
+
+# Apply gdformat to the GDScript sources
+a3f330393704bc0307375aff38ffd69be4fc95b2
