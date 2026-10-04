@@ -18,7 +18,11 @@ void MacPowerMonitor::_bind_methods() {
 	ADD_SIGNAL(MethodInfo("power_saver_changed", PropertyInfo(Variant::BOOL, "enabled")));
 }
 
-MacPowerMonitor::MacPowerMonitor() {}
+MacPowerMonitor::MacPowerMonitor() {
+	// Observe from the start: a game that only connects power_saver_changed,
+	// and never reads the state, must still be told about changes.
+	start_observing();
+}
 
 MacPowerMonitor::~MacPowerMonitor() {
 	// Order matters, for the same reason teardown() joins the worker in the GIO
@@ -44,7 +48,6 @@ int64_t MacPowerMonitor::power_saver_state() {
 	// portal, this cannot fail or time out — the value is always knowable, so
 	// -1 is never returned here. The tri-state is kept anyway so the GDScript
 	// adapter matches the backend contract exactly.
-	start_observing();
 	const BOOL enabled = [[NSProcessInfo processInfo] isLowPowerModeEnabled];
 	return enabled ? 1 : 0;
 }

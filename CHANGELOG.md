@@ -60,6 +60,10 @@ Before 1.0 the public API may change in a minor release.
   original handle, and `close_request()` uses the portal's actual path.
 - The native power-saver smoke check waits for a real state transition, so its
   result does not depend on the fake portal timer's phase.
+- macOS: the Low Power Mode observer starts when the backend is created. It
+  started on the first `is_power_saver_enabled()` call, so a game that only
+  connected `power_saver_changed` was never told about a change. Not run on
+  hardware; CI builds it.
 - A GameMode registration made with `request_game_mode()` is released when
   `DesktopServices` leaves the tree or `set_backend()` replaces the backend.
   It used to stay registered until the process exited.
