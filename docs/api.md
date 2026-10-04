@@ -157,7 +157,9 @@ rejected locally. Priorities map to the portal's string names: `"low"`,
 `"normal"`, `"high"`, `"urgent"`.
 
 `notification_action_invoked` forwards the portal's `ActionInvoked` signal.
-`parameters` holds the D-Bus payload converted to Godot values.
+`parameters` holds the D-Bus payload converted to Godot values: byte arrays
+(`ay`) become `PackedByteArray`, and dictionaries keep their keys whatever their
+type (`a{us}` becomes a `Dictionary` keyed by `int`).
 
 ## Signals
 

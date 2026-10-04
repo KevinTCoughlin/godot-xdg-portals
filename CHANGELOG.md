@@ -60,6 +60,9 @@ Before 1.0 the public API may change in a minor release.
   original handle, and `close_request()` uses the portal's actual path.
 - The native power-saver smoke check waits for a real state transition, so its
   result does not depend on the fake portal timer's phase.
+- D-Bus payloads convert faithfully: `ay` becomes a `PackedByteArray` rather
+  than an `Array` of integers, and a dictionary whose keys are not strings
+  (`a{us}`, say) keeps its keys instead of turning into an array of nulls.
 - The native smoke test waits for the action on its own notification. It took
   the first `notification_action_invoked`, which could be the action the fake
   portal sends for the notification posted earlier in the run.

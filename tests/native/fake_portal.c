@@ -135,6 +135,18 @@ static gboolean emit_action_invoked(gpointer data) {
 	GVariantBuilder parameters;
 	g_variant_builder_init(&parameters, G_VARIANT_TYPE("av"));
 	g_variant_builder_add(&parameters, "v", g_variant_new_string("slot-3"));
+	if (g_strcmp0(id, "smoke-types") == 0) {
+		// Container types the client must convert faithfully: a byte array and
+		// a dictionary whose keys are not strings.
+		static const guint8 bytes[] = { 1, 2, 255 };
+		g_variant_builder_add(&parameters, "v",
+				g_variant_new_fixed_array(G_VARIANT_TYPE_BYTE, bytes, sizeof(bytes), 1));
+		GVariantBuilder by_number;
+		g_variant_builder_init(&by_number, G_VARIANT_TYPE("a{us}"));
+		g_variant_builder_add(&by_number, "{us}", 1, "one");
+		g_variant_builder_add(&by_number, "{us}", 2, "two");
+		g_variant_builder_add(&parameters, "v", g_variant_builder_end(&by_number));
+	}
 
 	g_dbus_connection_emit_signal(bus, NULL, PORTAL_PATH,
 			"org.freedesktop.portal.Notification", "ActionInvoked",

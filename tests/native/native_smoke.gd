@@ -146,6 +146,22 @@ func _check_async_paths() -> void:
 	_expect(action[1] == "open-folder", "the action name should be forwarded")
 	_expect(action[2] == ["slot-3"], "the action parameters should be converted")
 
+	# Container types: `ay` arrives as bytes, and a dictionary keyed by
+	# integers keeps its keys.
+	_portal.add_notification("smoke-types", "Title")
+	var typed: Array = await _action_for("smoke-types")
+	var parameters: Array = typed[2]
+	_expect(parameters.size() == 3, "three typed parameters arrive, got %s" % [parameters])
+	if parameters.size() == 3:
+		_expect(
+			parameters[1] is PackedByteArray and parameters[1] == PackedByteArray([1, 2, 255]),
+			"ay converts to PackedByteArray, got %s" % type_string(typeof(parameters[1]))
+		)
+		_expect(
+			parameters[2] is Dictionary and parameters[2] == {1: "one", 2: "two"},
+			"a{us} converts to a Dictionary keyed by int, got %s" % [parameters[2]]
+		)
+
 	# The fake service toggles power-saver every 300 ms.
 	var initial: Variant = _portal.is_power_saver_enabled()
 	_expect(initial != null, "the power-saver property should be readable")

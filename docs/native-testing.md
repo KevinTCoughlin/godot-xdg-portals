@@ -44,7 +44,8 @@ It exercises the parts of the native layer that need no human:
 - `Request.Response` delivery for both `Inhibit` and `OpenURI`, including that a
   non-zero response code is forwarded as `CANCELLED` rather than assumed
   successful;
-- `Notification.ActionInvoked` delivery and payload conversion;
+- `Notification.ActionInvoked` delivery and payload conversion, including byte
+  arrays and integer-keyed dictionaries;
 - `PropertiesChanged` on `power-saver-enabled`, and that the cached state
   follows it.
 
