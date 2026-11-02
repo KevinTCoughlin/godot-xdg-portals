@@ -8,6 +8,14 @@ Before 1.0 the public API may change in a minor release.
 
 ## [Unreleased]
 
+### Added
+
+- CI coverage for Godot 4.8-beta2 as a non-blocking preview. The mock suite
+  and the native smoke test run against that build; a failure does not fail
+  the workflow. 4.4.1 and 4.7.2 stay the required versions. The native library
+  is still built with godot-cpp `godot-4.4.1-stable`, and
+  `compatibility_minimum` stays `4.4`.
+
 ## [0.2.0] — 2026-10-04
 
 ### Added

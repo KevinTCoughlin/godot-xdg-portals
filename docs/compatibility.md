@@ -7,11 +7,23 @@
 | 4.4.x | Supported and tested (4.4.1 in CI). |
 | 4.5–4.6 | Expected to work — `compatibility_minimum` is `4.4`; these versions are not covered by CI. |
 | 4.7.2 | Supported and tested in CI: the mock suite and native backend smoke test run against this engine. |
+| 4.8-beta2 | Preview. The mock suite and native smoke test run against this build in CI, and that job is allowed to fail (`continue-on-error`). Not a supported release target. |
 | 4.3 and older | Unsupported. The GDExtension ABI level declared here is 4.4. |
 
-godot-cpp is pinned to `godot-4.4.1-stable`, preserving the 4.4 minimum. CI
-loads that same native library in Godot 4.4.1 and 4.7.2; it does not assume
-that building against the older API alone proves newer-engine compatibility.
+godot-cpp is pinned to `godot-4.4.1-stable`, preserving the 4.4 minimum
+(`compatibility_minimum = "4.4"` in `xdg_portals.gdextension`; there is no
+`compatibility_maximum`). The bundled `extension_api.json` is the 4.4.1 API.
+CI loads that same native library in Godot 4.4.1 and 4.7.2, and, as a
+non-blocking preview, in 4.8-beta2. It does not rebuild against the 4.8
+`extension_api.json`: a library built for a newer API would not load in 4.4
+or 4.7.
+
+This repository does not compile the Godot engine, and it does not build
+godot-cpp with SCons. `scripts/build.sh` fetches the pinned tag and builds it
+with CMake. That tag's binding generator requires Python 3.4 or newer
+(`find_package(Python3 3.4)`). Godot 4.8-beta2 raised the *engine* SCons/CI
+Python floor from 3.9 to 3.10; that floor does not apply here. The
+ubuntu-24.04 runners provide Python 3.12.
 
 ## Platforms
 

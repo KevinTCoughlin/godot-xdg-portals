@@ -109,13 +109,24 @@ jobs:
           path: addons/xdg_portals/bin/*.dylib
           if-no-files-found: error
 
+  # Stable versions stay bare (4.4.1, 4.7.2) so existing check names do not
+  # change. A value containing '-' is a pre-release tag such as 4.8-beta2:
+  # scripts/install_godot.sh fetches it from godotengine/godot-builds, and the
+  # job is continue-on-error so a preview failure cannot hide a stable regression.
+  # The native library is not rebuilt per engine. godot-cpp stays pinned to
+  # godot-4.4.1-stable and is built with CMake, not SCons. That pin's binding
+  # generator asks for Python >= 3.4; ubuntu-24.04 provides 3.12, which is
+  # also above the Godot 4.8 engine-build floor of 3.10. compatibility_minimum
+  # in the .gdextension file stays 4.4 so the same library still loads in
+  # 4.4.1 and 4.7.2.
   tests:
-    name: Godot test suite (${{ matrix.godot_version }})
+    name: ${{ contains(matrix.godot_version, '-') && format('Godot test suite ({0}, preview)', matrix.godot_version) || format('Godot test suite ({0})', matrix.godot_version) }}
     runs-on: ubuntu-24.04
+    continue-on-error: ${{ contains(matrix.godot_version, '-') }}
     strategy:
       fail-fast: false
       matrix:
-        godot_version: [4.4.1, 4.7.2]
+        godot_version: [4.4.1, 4.7.2, 4.8-beta2]
     env:
       GODOT_VERSION: ${{ matrix.godot_version }}
     steps:
@@ -124,12 +135,8 @@ jobs:
       - name: Install Godot
         run: |
           set -euo pipefail
-          archive="Godot_v${GODOT_VERSION}-stable_linux.x86_64"
-          url="https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}-stable/${archive}.zip"
-          curl --fail --location --silent --show-error --output godot.zip "$url"
-          unzip -q godot.zip
-          chmod +x "$archive"
-          sudo mv "$archive" /usr/local/bin/godot
+          ./scripts/install_godot.sh "$GODOT_VERSION" /tmp/godot-bin x86_64
+          sudo mv /tmp/godot-bin /usr/local/bin/godot
           godot --headless --version
 
       # The suite is entirely mock-backed: it needs neither a display nor a
@@ -138,12 +145,13 @@ jobs:
         run: ./scripts/run_tests.sh
 
   native-smoke:
-    name: Native backend vs. fake portal (${{ matrix.arch }}, ${{ matrix.godot_version }})
+    name: ${{ contains(matrix.godot_version, '-') && format('Native backend vs. fake portal ({0}, {1}, preview)', matrix.arch, matrix.godot_version) || format('Native backend vs. fake portal ({0}, {1})', matrix.arch, matrix.godot_version) }}
     runs-on: ${{ matrix.arch == 'arm64' && 'ubuntu-24.04-arm' || 'ubuntu-24.04' }}
+    continue-on-error: ${{ contains(matrix.godot_version, '-') }}
     strategy:
       fail-fast: false
       matrix:
-        godot_version: [4.4.1, 4.7.2]
+        godot_version: [4.4.1, 4.7.2, 4.8-beta2]
         arch: [x86_64, arm64]
     env:
       GODOT_VERSION: ${{ matrix.godot_version }}
@@ -159,14 +167,8 @@ jobs:
       - name: Install Godot
         run: |
           set -euo pipefail
-          godot_arch=x86_64
-          if [ "${{ matrix.arch }}" = arm64 ]; then godot_arch=arm64; fi
-          archive="Godot_v${GODOT_VERSION}-stable_linux.${godot_arch}"
-          url="https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}-stable/${archive}.zip"
-          curl --fail --location --silent --show-error --output godot.zip "$url"
-          unzip -q godot.zip
-          chmod +x "$archive"
-          sudo mv "$archive" /usr/local/bin/godot
+          ./scripts/install_godot.sh "$GODOT_VERSION" /tmp/godot-bin "${{ matrix.arch }}"
+          sudo mv /tmp/godot-bin /usr/local/bin/godot
 
       # Shares the architecture-specific key with the editor native-build job:
       # both populate build-editor/_deps with the same pinned godot-cpp checkout.
@@ -201,17 +203,15 @@ jobs:
           sudo apt-get install --no-install-recommends -y \
             build-essential cmake pkg-config libglib2.0-dev dbus
 
+      # Preview engines are intentionally absent here. This job loops every
+      # release in one step, so a 4.8 failure could not be continue-on-error
+      # on its own. The matrix jobs above cover 4.8-beta2.
       - name: Install Godot
         run: |
           set -euo pipefail
           for version in $GODOT_VERSIONS; do
-            archive="Godot_v${version}-stable_linux.x86_64"
-            url="https://github.com/godotengine/godot/releases/download/${version}-stable/${archive}.zip"
-            curl --fail --location --silent --show-error --output godot.zip "$url"
-            unzip -q godot.zip
-            chmod +x "$archive"
-            sudo mv "$archive" "/usr/local/bin/godot-${version}"
-            rm godot.zip
+            ./scripts/install_godot.sh "$version" "/tmp/godot-$version" x86_64
+            sudo mv "/tmp/godot-$version" "/usr/local/bin/godot-$version"
           done
 
       - name: Cache godot-cpp checkout
