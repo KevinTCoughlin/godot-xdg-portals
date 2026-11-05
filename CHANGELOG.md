@@ -10,6 +10,14 @@ Before 1.0 the public API may change in a minor release.
 
 ### Added
 
+- A combined `godot-xdg-portals-<version>-asset-store.zip` release archive for
+  the Godot Asset Store: Linux `x86_64`/`arm64` and universal macOS libraries
+  for every target in `xdg_portals.gdextension`, rooted at `addons/`, with
+  `LICENSE`, `README.md`, `THIRD_PARTY_NOTICES.md` and `CHANGELOG.md` inside
+  `addons/xdg_portals/`. The release workflow now builds the macOS
+  `template_debug` library too, and fails if any listed library is missing.
+- A 16:9 store thumbnail at `.github/store/thumbnail.png`.
+
 - CI coverage for Godot 4.8-beta2 as a non-blocking preview. The mock suite
   and the native smoke test run against that build; a failure does not fail
   the workflow. 4.4.1 and 4.7.2 stay the required versions. The native library

@@ -40,8 +40,10 @@ exposes no way to make an arbitrary D-Bus call.
 1. Download `godot-xdg-portals-<version>-linux-<arch>.zip` from the
    [releases page](https://github.com/KevinTCoughlin/godot-xdg-portals/releases)
    and verify it against the published `.sha256` file. The release workflow
-   builds both `x86_64` and `arm64` archives. Until an archive is published,
-   use the source build below.
+   builds both `x86_64` and `arm64` archives, plus a single
+   `godot-xdg-portals-<version>-asset-store.zip` that carries the Linux
+   `x86_64`/`arm64` and universal macOS libraries together (the same archive
+   published on the Godot Asset Store).
 2. Extract its `addons/xdg_portals` directory into your project's `addons/`.
 3. Enable **XDG Portals** in *Project → Project Settings → Plugins*. The plugin
    installs the `DesktopServices` autoload for you.

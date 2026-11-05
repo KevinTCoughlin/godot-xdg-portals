@@ -104,9 +104,110 @@ jobs:
             ${{ steps.stage.outputs.checksum }}
           if-no-files-found: error
 
+      # The raw libraries feed the combined Asset Store archive below.
+      - uses: actions/upload-artifact@v7
+        with:
+          name: libxdg_portals-linux-${{ matrix.arch }}
+          path: addons/xdg_portals/bin/*.so
+          if-no-files-found: error
+
+  macos:
+    name: Build macOS libraries
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v7
+
+      # xdg_portals.gdextension lists all three macOS targets, and the Asset
+      # Store rejects archives missing any library a .gdextension names.
+      - name: Build the release, debug and editor libraries
+        run: |
+          ./scripts/build.sh --target template_release
+          ./scripts/build.sh --target template_debug
+          ./scripts/build.sh --target editor
+
+      - name: Verify the libraries are universal
+        run: |
+          set -euo pipefail
+          for target in template_release template_debug editor; do
+            library="addons/xdg_portals/bin/libxdg_portals.macos.${target}.dylib"
+            lipo -info "$library"
+            lipo -info "$library" | grep -q x86_64
+            lipo -info "$library" | grep -q arm64
+            nm -gU "$library" | grep -q '_xdg_portals_library_init$'
+          done
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: libxdg_portals-macos
+          path: addons/xdg_portals/bin/*.dylib
+          if-no-files-found: error
+
+  store:
+    name: Assemble Asset Store archive
+    needs: [package, macos]
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Resolve version
+        id: version
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            version="${{ inputs.version }}"
+          else
+            version="${GITHUB_REF_NAME#v}"
+          fi
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: libxdg_portals-*
+          path: addons/xdg_portals/bin
+          merge-multiple: true
+
+      # One archive for every platform, rooted at addons/ as the store expects,
+      # with the licence and readme inside the plugin folder (users keep that
+      # folder, not the repository root).
+      - name: Stage the archive
+        id: stage
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          name="godot-xdg-portals-${VERSION}-asset-store"
+          stage="dist/${name}"
+          mkdir -p "${stage}/addons"
+          cp -r addons/xdg_portals "${stage}/addons/"
+          cp README.md LICENSE THIRD_PARTY_NOTICES.md CHANGELOG.md "${stage}/addons/xdg_portals/"
+          find "${stage}" -mindepth 1 -name '.*' -prune -exec rm -rf {} +
+
+          # Every library the .gdextension names must be in the archive.
+          grep -o 'res://[^"]*' addons/xdg_portals/xdg_portals.gdextension | sort -u |
+            while read -r path; do
+              if [ ! -f "${stage}/${path#res://}" ]; then
+                echo "Missing ${path}" >&2
+                exit 1
+              fi
+            done
+
+          (cd "${stage}" && zip -q -r "../${name}.zip" addons)
+          (cd dist && sha256sum "${name}.zip" > "${name}.zip.sha256")
+          unzip -l "dist/${name}.zip"
+          echo "archive=dist/${name}.zip" >> "$GITHUB_OUTPUT"
+          echo "checksum=dist/${name}.zip.sha256" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: godot-xdg-portals-asset-store
+          path: |
+            ${{ steps.stage.outputs.archive }}
+            ${{ steps.stage.outputs.checksum }}
+          if-no-files-found: error
+
   publish:
     name: Publish draft release
-    needs: package
+    needs: [package, store]
     if: github.event_name == 'push'
     runs-on: ubuntu-24.04
     permissions:
@@ -114,7 +215,7 @@ jobs:
     steps:
       - uses: actions/download-artifact@v8
         with:
-          pattern: godot-xdg-portals-linux-*
+          pattern: godot-xdg-portals-*
           path: dist
           merge-multiple: true
 
