@@ -8,6 +8,8 @@ Before 1.0 the public API may change in a minor release.
 
 ## [Unreleased]
 
+## [0.2.1] — 2026-11-04
+
 ### Added
 
 - A combined `godot-xdg-portals-<version>-asset-store.zip` release archive for
@@ -211,5 +213,6 @@ is the first published release.
   `--talk-name=org.freedesktop.portal.Desktop`; no wildcard `--talk-name` and no
   system bus access.
 
-[Unreleased]: https://github.com/KevinTCoughlin/godot-xdg-portals/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/KevinTCoughlin/godot-xdg-portals/compare/v0.2.1...HEAD
+[0.2.1]: https://github.com/KevinTCoughlin/godot-xdg-portals/releases/tag/v0.2.1
 [0.2.0]: https://github.com/KevinTCoughlin/godot-xdg-portals/releases/tag/v0.2.0
