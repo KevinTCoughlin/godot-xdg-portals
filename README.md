@@ -1,5 +1,7 @@
 # godot-xdg-portals
 
+[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/KevinTCoughlin/godot-xdg-portals/badge)](https://scorecard.dev/viewer/?uri=github.com/KevinTCoughlin/godot-xdg-portals)
+
 Typed, sandbox-safe access to selected [XDG Desktop Portal](https://flatpak.github.io/xdg-desktop-portal/)
 APIs from Godot 4.4+, as a GDExtension plus a small GDScript facade.
 
