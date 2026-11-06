@@ -27,7 +27,9 @@ jobs:
         target: [template_debug, template_release, editor]
         arch: [x86_64, arm64]
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Install GLib/GIO development headers
         run: |
@@ -36,7 +38,7 @@ jobs:
             build-essential cmake pkg-config libglib2.0-dev
 
       - name: Cache godot-cpp checkout
-        uses: actions/cache@v6
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: build-${{ matrix.target }}/_deps
           key: godot-cpp-${{ matrix.arch }}-${{ matrix.target }}-${{ hashFiles('CMakeLists.txt') }}
@@ -49,7 +51,7 @@ jobs:
       # enough: the analysed sources do not vary by target or architecture.
       - name: Install uv
         if: matrix.target == 'editor' && matrix.arch == 'x86_64'
-        uses: astral-sh/setup-uv@v10.3.3
+        uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
 
       - name: clang-tidy
         if: matrix.target == 'editor' && matrix.arch == 'x86_64'
@@ -63,7 +65,7 @@ jobs:
           nm -D --defined-only "$library" | grep -q ' xdg_portals_library_init$'
           echo "Found xdg_portals_library_init in $library"
 
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: libxdg_portals-linux-${{ matrix.arch }}-${{ matrix.target }}
           path: addons/xdg_portals/bin/*.so
@@ -76,10 +78,12 @@ jobs:
       matrix:
         target: [template_release, editor]
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Cache godot-cpp checkout
-        uses: actions/cache@v6
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: build-${{ matrix.target }}/_deps
           key: godot-cpp-macos-${{ matrix.target }}-${{ hashFiles('CMakeLists.txt') }}
@@ -103,7 +107,7 @@ jobs:
           echo "Found xdg_portals_library_init in $library"
           otool -L "$library" | grep -q 'Foundation.framework'
 
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: libxdg_portals-macos-${{ matrix.target }}
           path: addons/xdg_portals/bin/*.dylib
@@ -130,7 +134,9 @@ jobs:
     env:
       GODOT_VERSION: ${{ matrix.godot_version }}
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Install Godot
         run: |
@@ -156,7 +162,9 @@ jobs:
     env:
       GODOT_VERSION: ${{ matrix.godot_version }}
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Install build and D-Bus dependencies
         run: |
@@ -173,7 +181,7 @@ jobs:
       # Shares the architecture-specific key with the editor native-build job:
       # both populate build-editor/_deps with the same pinned godot-cpp checkout.
       - name: Cache godot-cpp checkout
-        uses: actions/cache@v6
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: build-editor/_deps
           key: godot-cpp-${{ matrix.arch }}-editor-${{ hashFiles('CMakeLists.txt') }}
@@ -195,7 +203,9 @@ jobs:
     env:
       GODOT_VERSIONS: 4.4.1 4.7.2
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Install build and D-Bus dependencies
         run: |
@@ -215,7 +225,7 @@ jobs:
           done
 
       - name: Cache godot-cpp checkout
-        uses: actions/cache@v6
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: build-editor-sanitize/_deps
           key: godot-cpp-x86_64-editor-sanitize-${{ hashFiles('CMakeLists.txt') }}
@@ -240,8 +250,10 @@ jobs:
     name: Formatting and lint (clang-format, gdformat, gdlint)
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v7
-      - uses: astral-sh/setup-uv@v10.3.3
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
       # Tool versions are pinned in scripts/check.sh and run through uvx, so
       # these match a local `scripts/check.sh lint` exactly.
       - name: clang-format
@@ -253,7 +265,9 @@ jobs:
     name: Shell scripts (bash -n, shellcheck)
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - name: bash -n
         run: |
           set -euo pipefail
@@ -261,7 +275,7 @@ jobs:
             bash -n "$script"
             echo "ok $script"
           done
-      - uses: astral-sh/setup-uv@v10.3.3
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
       - name: shellcheck
         run: ./scripts/check.sh shell
 
@@ -269,5 +283,7 @@ jobs:
     name: REUSE compliance
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v7
-      - uses: fsfe/reuse-action@v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: fsfe/reuse-action@676e2d560c9a403aa252096d99fcab3e1132b0f5 # v6.0.0
