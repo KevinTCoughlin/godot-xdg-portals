@@ -8,6 +8,12 @@ Before 1.0 the public API may change in a minor release.
 
 ## [Unreleased]
 
+### Added
+
+- Releases carry signed SLSA build provenance for every archive (a
+  `.sigstore.json` bundle; check with `gh attestation verify`).
+- CodeQL scans the workflows and the C++ library on every pull request.
+
 ## [0.2.1] — 2026-11-04
 
 ### Added
