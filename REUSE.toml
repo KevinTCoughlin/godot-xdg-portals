@@ -45,6 +45,7 @@ path = [
     "DCO.txt",
     "THIRD_PARTY_NOTICES.md",
     "docs/**",
+    "site/og-image.png",
     ".github/**",
     ".vscode/**",
     ".zed/**",
