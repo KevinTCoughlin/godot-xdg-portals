@@ -9,11 +9,50 @@ SPDX-License-Identifier: MIT
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>godot-xdg-portals — desktop portals for Godot games on Linux</title>
-<meta name="description" content="A Godot 4.4+ GDExtension for XDG Desktop Portals: GameMode, idle inhibition, power-saver awareness, URI opening and notifications. Works in Flatpak, degrades safely everywhere else.">
-<meta property="og:title" content="godot-xdg-portals">
-<meta property="og:description" content="Desktop portals for Godot games on Linux. Typed, sandbox-safe, and honest about what it cannot do.">
+<meta name="description" content="Godot 4.4+ GDExtension for XDG Desktop Portals on Linux: GameMode, idle inhibit, power-saver state, OpenURI and notifications. Flatpak-safe, MIT.">
+<link rel="canonical" href="https://kevintcoughlin.com/godot-xdg-portals/">
+<meta name="author" content="Kevin Coughlin">
+<meta name="theme-color" content="#0e1116">
 <meta property="og:type" content="website">
-<meta property="og:url" content="https://kevintcoughlin.github.io/godot-xdg-portals/">
+<meta property="og:site_name" content="godot-xdg-portals">
+<meta property="og:url" content="https://kevintcoughlin.com/godot-xdg-portals/">
+<meta property="og:title" content="godot-xdg-portals: desktop portals for Godot games on Linux">
+<meta property="og:description" content="Desktop portals for Godot games on Linux. Typed, sandbox-safe, and honest about what it cannot do.">
+<meta property="og:image" content="https://kevintcoughlin.com/godot-xdg-portals/og-image.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="godot-xdg-portals: desktop portals for Godot games on Linux">
+<meta property="og:locale" content="en_US">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="godot-xdg-portals: desktop portals for Godot games on Linux">
+<meta name="twitter:description" content="GameMode, idle inhibit, power-saver state, OpenURI and notifications for Godot 4.4+. Works inside Flatpak.">
+<meta name="twitter:image" content="https://kevintcoughlin.com/godot-xdg-portals/og-image.png">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "SoftwareSourceCode",
+  "@id": "https://kevintcoughlin.com/godot-xdg-portals/#code",
+  "name": "godot-xdg-portals",
+  "description": "A Godot 4.4+ GDExtension and GDScript facade for XDG Desktop Portals: GameMode, Inhibit, PowerProfileMonitor, OpenURI and Notification. Linux carries the full portal bridge; macOS gets power-saver state; other platforms load a null backend.",
+  "url": "https://kevintcoughlin.com/godot-xdg-portals/",
+  "image": "https://kevintcoughlin.com/godot-xdg-portals/og-image.png",
+  "codeRepository": "https://github.com/KevinTCoughlin/godot-xdg-portals",
+  "programmingLanguage": ["C++", "GDScript"],
+  "runtimePlatform": "Godot Engine 4.4+",
+  "targetProduct": {
+    "@type": "SoftwareApplication",
+    "name": "godot-xdg-portals",
+    "applicationCategory": "DeveloperApplication",
+    "operatingSystem": "Linux, macOS",
+    "softwareVersion": "0.2.1",
+    "downloadUrl": "https://github.com/KevinTCoughlin/godot-xdg-portals/releases/latest",
+    "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" }
+  },
+  "license": "https://opensource.org/licenses/MIT",
+  "isAccessibleForFree": true,
+  "author": { "@type": "Person", "name": "Kevin Coughlin", "url": "https://kevintcoughlin.com/" }
+}
+</script>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%23478cbf'/><path d='M9 16h11M16 11l5 5-5 5' stroke='%23fff' stroke-width='2.6' fill='none' stroke-linecap='round' stroke-linejoin='round'/></svg>">
 <style>
   :root {
@@ -141,6 +180,7 @@ SPDX-License-Identifier: MIT
   .card {
     background: var(--bg-raised); border: 1px solid var(--border);
     border-radius: .75rem; padding: 1.35rem; display: flex; flex-direction: column;
+    min-width: 0; /* let the nowrap .api line scroll instead of widening the grid */
   }
   .card-icon { width: 26px; height: 26px; color: var(--accent); margin-bottom: .85rem; }
   .card h3 { margin: 0 0 .35rem; font-size: 1.06rem; font-weight: 650; }
@@ -391,8 +431,9 @@ SPDX-License-Identifier: MIT
     <p class="section-sub">Grab the release archive, or build the extension yourself.</p>
 
     <div class="code-block">
-      <p class="code-label">From a release (<a href="https://github.com/KevinTCoughlin/godot-xdg-portals/releases/latest">v0.2.1</a>, Linux x86-64 and arm64; macOS power monitor)</p>
-<pre><span class="c-com"># godot-xdg-portals-0.2.0-linux-x86_64.zip (or -arm64), checked against its .sha256.</span>
+      <p class="code-label">From a release (<a href="https://github.com/KevinTCoughlin/godot-xdg-portals/releases/latest">v0.2.1</a>, Linux x86-64 and arm64; macOS power monitor in the asset-store archive)</p>
+<pre><span class="c-com"># godot-xdg-portals-0.2.1-linux-x86_64.zip (or -arm64), checked against its .sha256.</span>
+<span class="c-com"># godot-xdg-portals-0.2.1-asset-store.zip carries both Linux arches and macOS.</span>
 <span class="c-com"># Extract addons/xdg_portals into your project, then enable</span>
 <span class="c-com"># "XDG Portals" in Project Settings → Plugins.</span>
 <span class="c-com"># The plugin installs the DesktopServices autoload for you.</span></pre>
