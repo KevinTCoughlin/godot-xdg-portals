@@ -14,6 +14,11 @@ Before 1.0 the public API may change in a minor release.
   `.sigstore.json` bundle; check with `gh attestation verify`).
 - CodeQL scans the workflows and the C++ library on every pull request.
 
+### Changed
+
+- The non-blocking Godot 4.8 preview in CI now runs against 4.8-beta3
+  (`c51ff06e8`) instead of 4.8-beta2.
+
 ## [0.2.1] — 2026-11-04
 
 ### Added

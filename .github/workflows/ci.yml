@@ -114,7 +114,7 @@ jobs:
           if-no-files-found: error
 
   # Stable versions stay bare (4.4.1, 4.7.2) so existing check names do not
-  # change. A value containing '-' is a pre-release tag such as 4.8-beta2:
+  # change. A value containing '-' is a pre-release tag such as 4.8-beta3:
   # scripts/install_godot.sh fetches it from godotengine/godot-builds, and the
   # job is continue-on-error so a preview failure cannot hide a stable regression.
   # The native library is not rebuilt per engine. godot-cpp stays pinned to
@@ -130,7 +130,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        godot_version: [4.4.1, 4.7.2, 4.8-beta2]
+        godot_version: [4.4.1, 4.7.2, 4.8-beta3]
     env:
       GODOT_VERSION: ${{ matrix.godot_version }}
     steps:
@@ -157,7 +157,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        godot_version: [4.4.1, 4.7.2, 4.8-beta2]
+        godot_version: [4.4.1, 4.7.2, 4.8-beta3]
         arch: [x86_64, arm64]
     env:
       GODOT_VERSION: ${{ matrix.godot_version }}
@@ -215,7 +215,7 @@ jobs:
 
       # Preview engines are intentionally absent here. This job loops every
       # release in one step, so a 4.8 failure could not be continue-on-error
-      # on its own. The matrix jobs above cover 4.8-beta2.
+      # on its own. The matrix jobs above cover 4.8-beta3.
       - name: Install Godot
         run: |
           set -euo pipefail
