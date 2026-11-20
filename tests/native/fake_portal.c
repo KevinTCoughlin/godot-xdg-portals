@@ -131,6 +131,8 @@ typedef struct {
 	gchar *handle;
 	gchar *sender;
 	guint32 response;
+	// Adds a value of each kind a portal's results can carry.
+	gboolean detailed;
 } PendingResponse;
 
 static void pending_response_free(gpointer data) {
@@ -146,6 +148,13 @@ static gboolean emit_response(gpointer data) {
 	GVariantBuilder results;
 	g_variant_builder_init(&results, G_VARIANT_TYPE("a{sv}"));
 	g_variant_builder_add(&results, "{sv}", "session_handle", g_variant_new_string(pending->handle));
+	if (pending->detailed) {
+		static const gchar *const uris[] = { "https://a.example/", "https://b.example/", NULL };
+		g_variant_builder_add(&results, "{sv}", "uris", g_variant_new_strv(uris, -1));
+		g_variant_builder_add(&results, "{sv}", "count", g_variant_new_uint32(3));
+		g_variant_builder_add(&results, "{sv}", "ratio", g_variant_new_double(0.25));
+		g_variant_builder_add(&results, "{sv}", "granted", g_variant_new_boolean(TRUE));
+	}
 
 	GError *err = NULL;
 	gboolean ok = g_dbus_connection_emit_signal(bus, pending->sender, pending->handle,
@@ -174,6 +183,30 @@ static gboolean emit_action_invoked(gpointer data) {
 		g_variant_builder_add(&by_number, "{us}", 1, "one");
 		g_variant_builder_add(&by_number, "{us}", 2, "two");
 		g_variant_builder_add(&parameters, "v", g_variant_builder_end(&by_number));
+	} else if (g_strcmp0(id, "smoke-scalars") == 0) {
+		// One of every basic type, at the edges of its range, then the
+		// containers that are not byte arrays or dictionaries.
+		g_variant_builder_add(&parameters, "v", g_variant_new_boolean(TRUE));
+		g_variant_builder_add(&parameters, "v", g_variant_new_byte(255));
+		g_variant_builder_add(&parameters, "v", g_variant_new_int16(G_MININT16));
+		g_variant_builder_add(&parameters, "v", g_variant_new_uint16(G_MAXUINT16));
+		g_variant_builder_add(&parameters, "v", g_variant_new_int32(G_MININT32));
+		g_variant_builder_add(&parameters, "v", g_variant_new_uint32(G_MAXUINT32));
+		g_variant_builder_add(&parameters, "v", g_variant_new_int64(G_MININT64));
+		// Above INT64_MAX: clamped, not wrapped to a negative number.
+		g_variant_builder_add(&parameters, "v", g_variant_new_uint64(G_MAXUINT64));
+		g_variant_builder_add(&parameters, "v", g_variant_new_uint64(42));
+		g_variant_builder_add(&parameters, "v", g_variant_new_double(-1.5));
+		g_variant_builder_add(&parameters, "v", g_variant_new_object_path("/org/example/Path"));
+		g_variant_builder_add(&parameters, "v", g_variant_new_signature("a{sv}"));
+		// A variant inside the variant is unwrapped all the way.
+		g_variant_builder_add(&parameters, "v",
+				g_variant_new_variant(g_variant_new_string("nested")));
+		g_variant_builder_add(&parameters, "v", g_variant_new("(si)", "pair", 9));
+		g_variant_builder_add(&parameters, "v", g_variant_new_parsed("@ay []"));
+		g_variant_builder_add(&parameters, "v", g_variant_new_parsed("[<'x'>, <int32 2>]"));
+		g_variant_builder_add(&parameters, "v", g_variant_new_parsed("{'k': <int32 5>}"));
+		g_variant_builder_add(&parameters, "v", g_variant_new_parsed("@ai []"));
 	}
 
 	g_dbus_connection_emit_signal(bus, NULL, PORTAL_PATH,
@@ -217,11 +250,13 @@ static gchar *request_path_for(const gchar *sender, GVariant *options) {
 	return path;
 }
 
-static void schedule_response(const gchar *sender, gchar *handle, guint32 response) {
+static void schedule_response(const gchar *sender, gchar *handle, guint32 response,
+		gboolean detailed) {
 	PendingResponse *pending = g_new0(PendingResponse, 1);
 	pending->handle = handle;
 	pending->sender = g_strdup(sender);
 	pending->response = response;
+	pending->detailed = detailed;
 	g_timeout_add_full(G_PRIORITY_DEFAULT, response_delay_ms, emit_response, pending,
 			pending_response_free);
 }
@@ -280,6 +315,11 @@ static void handle_method_call(GDBusConnection *connection, const gchar *sender,
 		gchar *predicted = request_path_for(sender, options);
 		gchar *handle = g_strconcat(predicted, "_actual", NULL);
 		g_free(predicted);
+		// The reason "smoke-other" ends the request with response 2 and a
+		// results payload of every common kind, as a portal that gave up would.
+		const gchar *reason = NULL;
+		const gboolean other = g_variant_lookup(options, "reason", "&s", &reason) &&
+				g_strcmp0(reason, "smoke-other") == 0;
 		g_variant_unref(options);
 		GError *error = NULL;
 		GDBusInterfaceInfo *request_interface = g_dbus_node_info_lookup_interface(
@@ -293,7 +333,7 @@ static void handle_method_call(GDBusConnection *connection, const gchar *sender,
 			return;
 		}
 		g_dbus_method_invocation_return_value(invocation, g_variant_new("(o)", handle));
-		schedule_response(sender, handle, 0);
+		schedule_response(sender, handle, other ? 2 : 0, other);
 		return;
 	}
 
@@ -318,7 +358,7 @@ static void handle_method_call(GDBusConnection *connection, const gchar *sender,
 			}
 			// Reported as cancelled so the test can tell a real response code
 			// apart from a locally synthesised one.
-			schedule_response(sender, handle, 1);
+			schedule_response(sender, handle, 1, FALSE);
 			return;
 		}
 		if (g_strcmp0(method_name, "SchemeSupported") == 0) {
