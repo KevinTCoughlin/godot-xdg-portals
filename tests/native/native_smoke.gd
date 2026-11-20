@@ -178,6 +178,27 @@ func _check_async_paths() -> void:
 	_expect(
 		_portal.close_request(handle), "Close should resolve the caller's handle to the portal path"
 	)
+	var inhibit_results: Dictionary = inhibit_result[2]
+	_expect(
+		str(inhibit_results.get("session_handle", "")).ends_with("_actual"),
+		"the results dictionary is forwarded, got %s" % [inhibit_results]
+	)
+
+	# A request the portal ended (response 2) with a results payload: the code
+	# is forwarded as OTHER and each value keeps its type.
+	var other_handle: String = _portal.inhibit(_portal.InhibitFlags.IDLE, "smoke-other")
+	_expect(other_handle != "", "a second inhibit should return a handle")
+	var other_result: Array = await _portal.request_completed
+	_expect(other_result[0] == other_handle, "the response should arrive on its own handle")
+	_expect(
+		other_result[1] == _portal.Response.OTHER,
+		"response 2 is reported as OTHER, got %s" % [other_result[1]]
+	)
+	var details: Dictionary = other_result[2]
+	_expect_same(details.get("uris"), ["https://a.example/", "https://b.example/"], "as results")
+	_expect_same(details.get("count"), 3, "u results")
+	_expect_same(details.get("ratio"), 0.25, "d results")
+	_expect_same(details.get("granted"), true, "b results")
 
 	# OpenURI: the fake service answers 1, proving the real response code is
 	# forwarded rather than assumed to be a success.
@@ -212,7 +233,44 @@ func _check_async_paths() -> void:
 			"a{us} converts to a Dictionary keyed by int, got %s" % [parameters[2]]
 		)
 
+	await _check_scalar_conversion()
 	await _check_power_saver_transition()
+
+
+## Every GVariant type a portal can send, through ActionInvoked's `av`
+## parameters: each basic type at the edge of its range (a `t` above INT64_MAX
+## is clamped, not wrapped), then the containers that are not byte arrays.
+func _check_scalar_conversion() -> void:
+	_portal.add_notification("smoke-scalars", "Title")
+	var scalars: Array = await _action_for("smoke-scalars")
+	var expected: Array = [
+		"slot-3",
+		true,
+		255,
+		-32768,
+		65535,
+		-2147483648,
+		4294967295,
+		-9223372036854775807 - 1,
+		9223372036854775807,
+		42,
+		-1.5,
+		"/org/example/Path",
+		"a{sv}",
+		"nested",
+		["pair", 9],
+		PackedByteArray(),
+		["x", 2],
+		{"k": 5},
+		[],
+	]
+	var parameters: Array = scalars[2]
+	_expect(
+		parameters.size() == expected.size(),
+		"%d parameters arrive, got %d: %s" % [expected.size(), parameters.size(), parameters]
+	)
+	for i in mini(parameters.size(), expected.size()):
+		_expect_same(parameters[i], expected[i], "parameter %d" % i)
 
 
 ## Waits for the action on notification [param id], ignoring any other.
@@ -317,6 +375,17 @@ func _check_wedged_bus() -> void:
 			"the reason says the connection timed out: '%s'" % backend.get_unavailable_reason()
 		)
 		backend.shutdown()
+
+
+## Equal in value and in type: 1 and 1.0, or 1 and true, are not the same.
+func _expect_same(actual: Variant, expected: Variant, what: String) -> void:
+	_expect(
+		typeof(actual) == typeof(expected) and actual == expected,
+		(
+			"%s: expected %s %s, got %s %s"
+			% [what, type_string(typeof(expected)), expected, type_string(typeof(actual)), actual]
+		)
+	)
 
 
 func _expect(condition: bool, message: String) -> void:
