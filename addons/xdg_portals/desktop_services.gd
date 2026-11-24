@@ -38,7 +38,8 @@ signal power_saver_changed(enabled: bool)
 signal request_completed(handle: String, response: int, results: Dictionary)
 
 ## Emitted when the user activates an action on a notification posted with
-## [method add_notification].
+## [method add_notification]. [param action] is the default action or a button
+## action from that call.
 signal notification_action_invoked(id: String, action: String, parameters: Array)
 
 ## Emitted when a portal call fails. [param context] names the D-Bus member.
@@ -116,6 +117,12 @@ const INTERFACE_NAMES: Dictionary = {
 ## [code]SchemeSupported[/code].
 const SCHEME_SUPPORTED_MIN_VERSION: int = 5
 
+## Most buttons [method add_notification] will attach. The portal defines no
+## limit; this one keeps a notification from turning into a menu.
+const MAX_NOTIFICATION_BUTTONS: int = 8
+
+const _MAX_NOTIFICATION_TEXT_LENGTH: int = 128
+
 const _PRIORITY_NAMES: PackedStringArray = ["low", "normal", "high", "urgent"]
 
 var _backend: DesktopServicesBackend = null
@@ -169,7 +176,7 @@ func get_backend() -> DesktopServicesBackend:
 	return _backend
 
 
-## Short name of the active backend: "native", "null" or "mock".
+## Short name of the active backend: "native", "macos", "null" or "mock".
 func get_backend_name() -> String:
 	_ensure_backend()
 	return _backend.get_backend_name()
@@ -259,12 +266,22 @@ func query_game_mode(pid: int = 0) -> GameModeStatus:
 ## Asks GameMode to apply its optimisations to [param pid] ([code]0[/code] for the
 ## current process). Returns [code]false[/code] when the request did not succeed.
 ##
+## Idempotent for a pid this facade already registered: a second call returns
+## [code]true[/code] and does not call [code]RegisterGame[/code] again. The
+## portal rejects a duplicate with [code]-1[/code] — the daemon already knows
+## that pid — so calling through would report failure for a hold that exists.
+## A rejection when this facade holds nothing (GameMode missing, or another
+## client such as the engine already registered the pid) returns [code]false[/code]
+## and records no hold. [method query_game_mode] tells those apart.
+##
 ## A registration still held when this node leaves the tree, or when
 ## [method set_backend] replaces the backend, is released then.
 func request_game_mode(pid: int = 0) -> bool:
 	if not has_capability(Capability.GAME_MODE):
 		return false
 	var resolved: int = _resolve_pid(pid)
+	if _game_mode_pids.has(resolved):
+		return true
 	if _backend.game_mode_register(resolved) != 0:
 		return false
 	_game_mode_pids[resolved] = true
@@ -272,10 +289,16 @@ func request_game_mode(pid: int = 0) -> bool:
 
 
 ## Releases a registration made with [method request_game_mode].
+##
+## Returns [code]false[/code] without calling [code]UnregisterGame[/code] when
+## this facade holds nothing for [param pid]. That includes a request the
+## portal rejected, so a release cannot drop a registration another client made.
 func release_game_mode(pid: int = 0) -> bool:
 	if not has_capability(Capability.GAME_MODE):
 		return false
 	var resolved: int = _resolve_pid(pid)
+	if not _game_mode_pids.has(resolved):
+		return false
 	if _backend.game_mode_unregister(resolved) != 0:
 		return false
 	_game_mode_pids.erase(resolved)
@@ -290,7 +313,10 @@ func release_game_mode(pid: int = 0) -> bool:
 ##
 ## Returns the request handle to pass to [method close_request], or an empty
 ## string when the request could not be started. The inhibition stays active
-## until the handle is closed or the application exits.
+## until the handle is closed, the application exits, or the portal service
+## exits or is replaced. That last case emits [signal request_completed] again
+## for the same handle with [enum Response] [code]OTHER[/code]: the inhibition
+## is no longer held, and the handle is dead.
 func inhibit(flags: int, reason: String, parent_window: String = "") -> String:
 	if not has_capability(Capability.INHIBIT):
 		return ""
@@ -391,20 +417,42 @@ func is_scheme_supported(scheme: String) -> Variant:
 
 
 ## Posts a notification under [param id]. Reusing an id replaces the previous
-## notification. Actions the user activates arrive via
-## [signal notification_action_invoked].
+## notification.
+##
+## [param default_action] is the action reported when the user activates the
+## notification itself. Leave it empty for none. [param buttons] are
+## [DesktopServicesNotificationButton] values: a visible label and an action
+## token, and nothing else. There is no target payload. Pressing a button or
+## the notification reports that action on [signal notification_action_invoked].
+##
+## An empty id, a button that is not a [DesktopServicesNotificationButton], an
+## empty or control-character label or action, a repeated button action, more
+## than [constant MAX_NOTIFICATION_BUTTONS] buttons, or a default action with a
+## control character is rejected locally: the call returns [code]false[/code],
+## emits [signal portal_error], and nothing reaches the bus. An empty default
+## action is "no default action", not an error.
 func add_notification(
 	id: String,
 	title: String,
 	body: String = "",
-	priority: NotificationPriority = NotificationPriority.NORMAL
+	priority: NotificationPriority = NotificationPriority.NORMAL,
+	default_action: String = "",
+	buttons: Array = []
 ) -> bool:
 	if not has_capability(Capability.NOTIFICATION):
 		return false
 	if id.is_empty():
 		push_error("DesktopServices.add_notification() requires a non-empty id.")
+		portal_error.emit("Notification.AddNotification", "A notification id must not be empty.")
 		return false
-	return _backend.add_notification(id, title, body, _priority_name(priority))
+	var rejection := _notification_rejection(default_action, buttons)
+	if not rejection.is_empty():
+		push_error("DesktopServices.add_notification(): %s" % rejection)
+		portal_error.emit("Notification.AddNotification", rejection)
+		return false
+	return _backend.add_notification(
+		id, title, body, _priority_name(priority), default_action, buttons
+	)
 
 
 ## Withdraws the notification previously posted under [param id].
@@ -479,6 +527,7 @@ func _connect_backend(backend: DesktopServicesBackend) -> void:
 	backend.request_completed.connect(_on_request_completed)
 	backend.notification_action_invoked.connect(_on_notification_action_invoked)
 	backend.portal_error.connect(_on_portal_error)
+	backend.portal_presence_changed.connect(_on_portal_presence_changed)
 
 
 func _disconnect_backend(backend: DesktopServicesBackend) -> void:
@@ -486,6 +535,7 @@ func _disconnect_backend(backend: DesktopServicesBackend) -> void:
 	backend.request_completed.disconnect(_on_request_completed)
 	backend.notification_action_invoked.disconnect(_on_notification_action_invoked)
 	backend.portal_error.disconnect(_on_portal_error)
+	backend.portal_presence_changed.disconnect(_on_portal_presence_changed)
 
 
 func _on_power_saver_changed(enabled: bool) -> void:
@@ -504,8 +554,70 @@ func _on_portal_error(context: String, message: String) -> void:
 	portal_error.emit(context, message)
 
 
+## A new portal instance is up. Re-read what it exports. A disappearance is
+## not probed: the name is unowned, and a call would only stall or activate a
+## service the session is already restarting. GameMode holds are left alone
+## too — gamemoded tracks the game process, not the portal process, so a
+## restart does not drop them and registering again would be rejected.
+func _on_portal_presence_changed(available: bool) -> void:
+	if available:
+		refresh_capabilities()
+
+
 func _resolve_pid(pid: int) -> int:
 	return OS.get_process_id() if pid == 0 else pid
+
+
+## Empty when [param default_action] and [param buttons] may be posted.
+## Otherwise the reason they were rejected, for [signal portal_error].
+func _notification_rejection(default_action: String, buttons: Array) -> String:
+	var reason := ""
+	var default_problem := _notification_text_problem(default_action)
+	if not default_action.is_empty() and not default_problem.is_empty():
+		reason = "The default action %s." % default_problem
+	elif buttons.size() > MAX_NOTIFICATION_BUTTONS:
+		reason = "At most %d notification buttons are accepted." % MAX_NOTIFICATION_BUTTONS
+	else:
+		var seen: Dictionary = {}
+		for button in buttons:
+			# The parameter is an untyped Array on purpose: a GDScript literal
+			# such as [button] is untyped, and a typed parameter would reject
+			# that call before this function could report it honestly.
+			if not button is DesktopServicesNotificationButton:
+				reason = "Each button must be a DesktopServicesNotificationButton."
+			else:
+				var typed: DesktopServicesNotificationButton = button
+				var label_problem := _notification_text_problem(typed.label)
+				var action_problem := _notification_text_problem(typed.action)
+				if not label_problem.is_empty():
+					reason = "A notification button label %s." % label_problem
+				elif not action_problem.is_empty():
+					reason = "A notification button action %s." % action_problem
+				elif seen.has(typed.action):
+					reason = (
+						"Notification button actions must be unique; '%s' is repeated."
+						% typed.action
+					)
+				else:
+					seen[typed.action] = true
+			if not reason.is_empty():
+				break
+	return reason
+
+
+## Empty when [param text] may be used as a label or an action token.
+## Otherwise a sentence fragment: "must not be empty", and so on. An action is
+## a token the game gets back, not a D-Bus value the game builds.
+func _notification_text_problem(text: String) -> String:
+	if text.is_empty():
+		return "must not be empty"
+	if text.length() > _MAX_NOTIFICATION_TEXT_LENGTH:
+		return "must be at most %d characters" % _MAX_NOTIFICATION_TEXT_LENGTH
+	for index: int in text.length():
+		var c: int = text.unicode_at(index)
+		if c < 32 or c == 127:
+			return "must not contain a control character"
+	return ""
 
 
 func _priority_name(priority: NotificationPriority) -> String:

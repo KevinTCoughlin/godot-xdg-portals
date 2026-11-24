@@ -24,6 +24,96 @@ func test_add_notification_defaults_to_normal_priority_and_empty_body() -> void:
 	var args: Array = mock.calls_to("add_notification")[0]["args"]
 	assert_eq(args[2], "")
 	assert_eq(args[3], "normal")
+	assert_eq(args[4], "", "no default action unless one was asked for")
+	assert_eq(args[5], [], "no buttons unless some were asked for")
+
+
+func test_add_notification_forwards_a_default_action_and_buttons() -> void:
+	var open := DesktopServicesNotificationButton.new("Open", "open")
+	var dismiss := DesktopServicesNotificationButton.new("Dismiss", "dismiss")
+	assert_true(
+		portal.add_notification(
+			"save", "Saved", "Chapter 3", Facade.NotificationPriority.HIGH, "open", [open, dismiss]
+		)
+	)
+	var args: Array = mock.calls_to("add_notification")[0]["args"]
+	assert_eq(args[3], "high")
+	assert_eq(args[4], "open")
+	assert_eq(args[5], [open, dismiss])
+
+
+func test_add_notification_rejects_a_value_that_is_not_a_button() -> void:
+	var open := DesktopServicesNotificationButton.new("Open", "open")
+	assert_false(
+		portal.add_notification(
+			"save", "Saved", "", Facade.NotificationPriority.NORMAL, "", [open, "nope"]
+		)
+	)
+	assert_eq(mock.calls.size(), 0, "a non-button never reaches the bus")
+
+
+func test_add_notification_rejects_a_button_without_a_label() -> void:
+	var errors := capture(portal, "portal_error")
+	var button := DesktopServicesNotificationButton.new("", "open")
+	assert_false(
+		portal.add_notification(
+			"save", "Saved", "", Facade.NotificationPriority.NORMAL, "", [button]
+		)
+	)
+	assert_eq(mock.calls.size(), 0, "a rejected button never reaches the bus")
+	assert_eq(errors.size(), 1)
+	assert_eq(errors[0][0], "Notification.AddNotification")
+
+
+func test_add_notification_rejects_duplicate_button_actions() -> void:
+	var first := DesktopServicesNotificationButton.new("Open", "open")
+	var second := DesktopServicesNotificationButton.new("Also open", "open")
+	assert_false(
+		portal.add_notification(
+			"save", "Saved", "", Facade.NotificationPriority.NORMAL, "", [first, second]
+		)
+	)
+	assert_eq(mock.calls.size(), 0)
+
+
+func test_add_notification_rejects_a_control_character_in_an_action() -> void:
+	var button := DesktopServicesNotificationButton.new("Open", "open\nfile")
+	assert_false(
+		portal.add_notification(
+			"save", "Saved", "", Facade.NotificationPriority.NORMAL, "", [button]
+		)
+	)
+	assert_false(
+		portal.add_notification(
+			"save", "Saved", "", Facade.NotificationPriority.NORMAL, "bad\naction"
+		)
+	)
+	assert_eq(mock.calls.size(), 0)
+
+
+func test_add_notification_rejects_an_overlong_action() -> void:
+	var button := DesktopServicesNotificationButton.new("Open", "a".repeat(129))
+	assert_false(
+		portal.add_notification(
+			"save", "Saved", "", Facade.NotificationPriority.NORMAL, "", [button]
+		)
+	)
+	assert_eq(mock.calls.size(), 0)
+
+
+func test_add_notification_rejects_too_many_buttons() -> void:
+	var buttons: Array[DesktopServicesNotificationButton] = []
+	for index: int in Facade.MAX_NOTIFICATION_BUTTONS + 1:
+		buttons.append(
+			DesktopServicesNotificationButton.new("Label %d" % index, "action-%d" % index)
+		)
+	assert_eq(buttons.size(), Facade.MAX_NOTIFICATION_BUTTONS + 1)
+	assert_false(
+		portal.add_notification(
+			"save", "Saved", "", Facade.NotificationPriority.NORMAL, "", buttons
+		)
+	)
+	assert_eq(mock.calls.size(), 0)
 
 
 func test_every_priority_maps_to_its_portal_name() -> void:
@@ -40,8 +130,11 @@ func test_every_priority_maps_to_its_portal_name() -> void:
 
 
 func test_add_notification_rejects_an_empty_id() -> void:
+	var errors := capture(portal, "portal_error")
 	assert_false(portal.add_notification("", "Saved"))
 	assert_eq(mock.calls.size(), 0)
+	assert_eq(errors.size(), 1)
+	assert_eq(errors[0][0], "Notification.AddNotification")
 
 
 func test_add_notification_reports_backend_failure() -> void:

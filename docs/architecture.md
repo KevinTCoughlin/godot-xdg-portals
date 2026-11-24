@@ -160,16 +160,24 @@ unconditionally, and watches the portal's bus name. The subscriptions name the
 portal's well-known name as their sender, so GLib follows whichever process owns
 it: a portal that was slow or absent at startup, or that restarts, is still
 heard. When the name's owner goes away or changes, pending requests are failed
-as above, the cached interface versions are dropped, and the power-saver state
-is marked unknown and re-read from the new owner.
+as above, and an Inhibit that had already succeeded is completed again with
+`Response.OTHER` — the inhibition died with that instance, so the caller's
+handle must not keep looking live. The cached interface versions are dropped,
+and the power-saver state is marked unknown and re-read from the new owner.
+The facade refreshes capabilities when a portal instance appears, including
+one that shows up only after startup. GameMode registrations are not redone:
+`gamemoded` tracks the game process, not the portal process, and a second
+`RegisterGame` for a pid it already knows is rejected.
 
 ### Type conversion
 
 `src/gvariant_conv.cpp` converts `GVariant` to Godot `Variant` in one direction
 only. There is deliberately no general Godot→`GVariant` converter: notification
-payloads are assembled from a fixed set of fields, and no API path lets game code
-construct an arbitrary D-Bus message. That is what keeps "no unsafe arbitrary
-D-Bus invocation" a structural property rather than a policy.
+payloads are assembled from a fixed set of fields (title, body, priority, an
+optional default action, and buttons that are each a label plus an action). A
+button has no target. No API path lets game code construct an arbitrary D-Bus
+message. That is what keeps "no unsafe arbitrary D-Bus invocation" a structural
+property rather than a policy.
 
 ### Shutdown
 

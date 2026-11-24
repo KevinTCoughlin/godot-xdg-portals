@@ -13,11 +13,47 @@ Before 1.0 the public API may change in a minor release.
 - Releases carry signed SLSA build provenance for every archive (a
   `.sigstore.json` bundle; check with `gh attestation verify`).
 - CodeQL scans the workflows and the C++ library on every pull request.
+- `DesktopServicesBackend.portal_presence_changed(available)`. The native
+  backend emits it when the portal bus name appears or disappears after
+  startup. The facade refreshes capabilities when a new owner appears.
+  Backends that never emit it behave as before.
+- `DesktopServicesNotificationButton`, and optional `default_action` and
+  `buttons` arguments on `add_notification()`. A button is a label plus an
+  action token. There is no action target, because that would be an arbitrary
+  D-Bus variant. At most `MAX_NOTIFICATION_BUTTONS` (8) buttons, with unique
+  actions. An empty id, an empty or control-character label or action, a
+  repeated button action, or too many buttons is rejected locally.
 
 ### Changed
 
+- **Breaking (backend authors only):** `add_notification()` on the backend
+  contract takes `default_action` and `buttons` after `priority`. Custom
+  backends that override the old four-argument method must accept the two new
+  arguments. Game code can keep calling `add_notification()` with the previous
+  arguments; both new ones default to empty.
 - The non-blocking Godot 4.8 preview in CI now runs against 4.8-beta4
   (`b070e63b1`) instead of 4.8-beta3.
+
+### Fixed
+
+- **`request_game_mode()` is one hold per pid.** A second call for a pid this
+  facade already registered returns `true` and does not call `RegisterGame`
+  again. The portal rejects that duplicate with `-1` (gamemoded already knows
+  the pid), so the second call used to report failure for a hold that
+  existed. `release_game_mode()` calls `UnregisterGame` only for a pid this
+  facade registered, and returns `false` otherwise. A release after a
+  rejected request — including one rejected because the engine, or another
+  client, already registered the process — no longer unregisters that other
+  client's hold.
+- **A granted inhibition is reported when the portal drops it.** If the
+  portal service exits or is replaced after `inhibit()` succeeded, the same
+  handle completes again with `Response.OTHER` and a `portal_error`. The
+  inhibition died with that portal instance; the handle used to stay looking
+  live, and the screen could blank during a cutscene with nothing emitted.
+  Capabilities are re-read when the new instance appears, so
+  `refresh_capabilities()` is no longer required to notice a restart.
+  GameMode is left as gamemoded holds it: a restart does not drop that
+  registration, and it is not registered a second time.
 
 ## [0.2.1] — 2026-11-04
 

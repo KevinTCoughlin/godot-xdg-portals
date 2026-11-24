@@ -539,9 +539,11 @@ void XdgPortalNative::on_portal_appeared(GDBusConnection * /*p_connection*/, con
 	XDGP_LOG("portal owned by %s%s\n", p_owner, replaced ? " (new instance)" : "");
 	if (replaced) {
 		// Requests are per instance: whatever the old one had not answered, it
-		// never will.
-		self->fail_pending_requests("The portal service was replaced before answering.");
+		// never will, and an inhibition it had granted died with it.
+		self->fail_pending_requests("The portal service was replaced before answering.",
+				"The inhibition ended because the portal service was replaced.");
 		self->refresh_power_saver_async();
+		self->emit_portal_presence(true);
 	}
 }
 
@@ -564,21 +566,27 @@ void XdgPortalNative::on_portal_vanished(GDBusConnection * /*p_connection*/, con
 	}
 	XDGP_LOG("portal name has no owner%s\n", was_owned ? " (it went away)" : "");
 	if (was_owned) {
-		self->fail_pending_requests("The portal service went away before answering.");
+		self->fail_pending_requests("The portal service went away before answering.",
+				"The inhibition ended because the portal service went away.");
+		self->emit_portal_presence(false);
 	}
 }
 
-void XdgPortalNative::fail_pending_requests(const String &p_reason) {
+void XdgPortalNative::fail_pending_requests(const String &p_reason, const String &p_inhibit_reason) {
 	std::vector<std::pair<String, String>> failed;
+	std::vector<String> dropped_inhibitions;
 	{
 		const std::scoped_lock guard(state_mutex);
 		for (const auto &entry : requests) {
 			if (!entry.second.answered) {
 				failed.emplace_back(entry.first, entry.second.context);
+			} else if (entry.second.is_inhibit) {
+				// The Request object died with the old instance, and the
+				// inhibition with it. Report that: a caller still holding the
+				// handle otherwise believes the session is inhibited.
+				dropped_inhibitions.push_back(entry.first);
 			}
 		}
-		// Answered Inhibit requests are dropped too: their Request objects died
-		// with the old instance, and the inhibitions with them.
 		requests.clear();
 		request_paths.clear();
 		unclaimed_responses.clear();
@@ -588,6 +596,18 @@ void XdgPortalNative::fail_pending_requests(const String &p_reason) {
 		emit_error(request.second, p_reason);
 		emit_request_completed(request.first, static_cast<int>(RESPONSE_OTHER), Dictionary());
 	}
+	for (const String &handle : dropped_inhibitions) {
+		XDGP_LOG("inhibition %s ended: %s\n", handle.utf8().get_data(), p_inhibit_reason.utf8().get_data());
+		emit_error("Inhibit.Inhibit", p_inhibit_reason);
+		emit_request_completed(handle, static_cast<int>(RESPONSE_OTHER), Dictionary());
+	}
+}
+
+void XdgPortalNative::emit_portal_presence(bool p_available) {
+	if (shutting_down.load()) {
+		return;
+	}
+	call_deferred("emit_signal", "portal_presence_changed", Variant(p_available));
 }
 
 // --- Discovery --------------------------------------------------------------
@@ -1186,8 +1206,13 @@ int XdgPortalNative::scheme_supported(const String &p_scheme) {
 // --- Notification -----------------------------------------------------------
 
 bool XdgPortalNative::add_notification(const String &p_id, const String &p_title,
-		const String &p_body, const String &p_priority) {
+		const String &p_body, const String &p_priority, const String &p_default_action,
+		const PackedStringArray &p_button_labels, const PackedStringArray &p_button_actions) {
 	if (connection == nullptr || p_id.is_empty()) {
+		return false;
+	}
+	if (p_button_labels.size() != p_button_actions.size()) {
+		emit_error("Notification.AddNotification", "Notification button labels and actions differ in length.");
 		return false;
 	}
 
@@ -1199,6 +1224,25 @@ bool XdgPortalNative::add_notification(const String &p_id, const String &p_title
 	}
 	if (!p_priority.is_empty()) {
 		g_variant_builder_add(&notification, "{sv}", "priority", g_variant_new_string(p_priority.utf8().get_data()));
+	}
+	if (!p_default_action.is_empty()) {
+		g_variant_builder_add(&notification, "{sv}", "default-action",
+				g_variant_new_string(p_default_action.utf8().get_data()));
+	}
+	if (p_button_labels.size() > 0) {
+		GVariantBuilder buttons;
+		g_variant_builder_init(&buttons, G_VARIANT_TYPE("aa{sv}"));
+		for (int64_t i = 0; i < p_button_labels.size(); i++) {
+			GVariantBuilder button;
+			g_variant_builder_init(&button, G_VARIANT_TYPE("a{sv}"));
+			g_variant_builder_add(&button, "{sv}", "label",
+					g_variant_new_string(p_button_labels[i].utf8().get_data()));
+			g_variant_builder_add(&button, "{sv}", "action",
+					g_variant_new_string(p_button_actions[i].utf8().get_data()));
+			// "a{sv}" consumes the child builder. Only label and action are written.
+			g_variant_builder_add(&buttons, "a{sv}", &button);
+		}
+		g_variant_builder_add(&notification, "{sv}", "buttons", g_variant_builder_end(&buttons));
 	}
 
 	GVariant *reply = call_portal_sync(IFACE_NOTIFICATION, "AddNotification",
@@ -1272,8 +1316,10 @@ void XdgPortalNative::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("open_uri", "uri", "ask", "parent_window"), &XdgPortalNative::open_uri);
 	ClassDB::bind_method(D_METHOD("scheme_supported", "scheme"), &XdgPortalNative::scheme_supported);
 
-	ClassDB::bind_method(D_METHOD("add_notification", "id", "title", "body", "priority"),
-			&XdgPortalNative::add_notification);
+	ClassDB::bind_method(D_METHOD("add_notification", "id", "title", "body", "priority", "default_action",
+								 "button_labels", "button_actions"),
+			&XdgPortalNative::add_notification, DEFVAL(""), DEFVAL(PackedStringArray()),
+			DEFVAL(PackedStringArray()));
 	ClassDB::bind_method(D_METHOD("remove_notification", "id"), &XdgPortalNative::remove_notification);
 
 	ADD_SIGNAL(MethodInfo("power_saver_changed", PropertyInfo(Variant::BOOL, "enabled")));
@@ -1288,6 +1334,7 @@ void XdgPortalNative::_bind_methods() {
 	ADD_SIGNAL(MethodInfo("portal_error",
 			PropertyInfo(Variant::STRING, "context"),
 			PropertyInfo(Variant::STRING, "message")));
+	ADD_SIGNAL(MethodInfo("portal_presence_changed", PropertyInfo(Variant::BOOL, "available")));
 }
 
 } // namespace xdg_portals

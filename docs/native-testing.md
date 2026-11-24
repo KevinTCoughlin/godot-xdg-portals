@@ -38,7 +38,7 @@ runs only that one):
 | `default` | behaves. | Everything below. |
 | `immediate` | sends `Response` the instant the method returns, and has GameMode active for another process. | Everything below; no `Response` is lost to a late subscription. |
 | `slow-start` | stalls 2.5 s on its first property read, past the client's timeout. | `power_saver_changed` still arrives, and capabilities are discovered. |
-| `restart` | exits after answering `OpenURI` without sending its `Response`, and is started again. | The request completes with `OTHER`; signals and requests work against the new instance. |
+| `restart` | exits after answering `OpenURI` without sending its `Response`, and is started again. | The pending request completes with `OTHER`, and an inhibition granted before the exit completes again with `OTHER`. Capabilities are refreshed against the new instance; signals and requests work there. |
 | `wedged-bus` | is joined by a socket that accepts connections and never answers, which the extension is pointed at. | Connecting gives up within `CONNECT_TIMEOUT_MS` and says why. |
 
 It exercises the parts of the native layer that need no human:
@@ -129,11 +129,11 @@ shows exactly what the portal answered.
 | 8 | *Open URI* with **Ask** ticked. | The "open with" chooser appears. Dismissing it reports `cancelled`, not `success`. |
 | 9 | *Open URI* with `file:///etc/passwd`. | Rejected locally with a `portal_error`; no dialog, no bus traffic. |
 | 10 | *Scheme supported?* for `https`, then for a nonsense scheme, on a portal older than 1.16. | `true`, `false`, and `unknown` on the old portal — never a guess. |
-| 11 | *Post notification*, then activate it from the notification centre. | The notification appears with the right title/body; `notification_action_invoked` fires. |
+| 11 | *Post notification*, then click the notification or its **Open manual** button. | The notification shows that button. `notification_action_invoked` fires with action `open` for either click. |
 | 12 | *Withdraw notification* while it is still on screen. | It disappears. |
 | 13 | Repeat 1–12 inside a Flatpak built with only `--socket=session-bus` and `--talk-name=org.freedesktop.portal.Desktop`. | Identical behaviour; no additional permission needed. |
 | 14 | Quit the demo while an inhibition is active. | The inhibition is released with the process; no stuck idle-inhibitor remains. |
-| 15 | `systemctl --user restart xdg-desktop-portal` while the demo runs, then call `refresh_capabilities()`. | No crash; capabilities are re-discovered; a request pending across the restart completes with `other`; power-saver changes are still reported. |
+| 15 | `systemctl --user restart xdg-desktop-portal` while the demo runs, with an inhibition already granted and GameMode requested. | No crash. Capabilities refresh on their own. A request pending across the restart completes with `other`, and the granted inhibition completes again with `other` (the screen can blank; the handle is dead). Power-saver changes are still reported. GameMode stays registered: it is held by `gamemoded`, and querying still says `registered`. |
 
 If a check fails, `XDG_PORTALS_DEBUG=1` traces subscriptions, async replies and
 incoming responses on stderr.

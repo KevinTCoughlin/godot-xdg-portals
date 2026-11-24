@@ -64,6 +64,25 @@ func test_available_backend_reports_no_unavailable_reason() -> void:
 	assert_eq(portal.get_unavailable_reason(), "")
 
 
+func test_portal_return_refreshes_capabilities() -> void:
+	mock.capabilities[Facade.Capability.OPEN_URI] = false
+	mock.emit_portal_presence(true)
+	assert_false(portal.has_capability(Facade.Capability.OPEN_URI))
+	mock.capabilities[Facade.Capability.OPEN_URI] = true
+	var emissions := capture(portal, "capabilities_changed")
+	mock.emit_portal_presence(true)
+	assert_true(portal.has_capability(Facade.Capability.OPEN_URI))
+	assert_eq(portal.get_interface_version(Facade.Capability.OPEN_URI), 5)
+	assert_eq(emissions.size(), 1, "a new portal owner refreshes capabilities")
+
+
+func test_portal_disappearance_does_not_refresh() -> void:
+	var emissions := capture(portal, "capabilities_changed")
+	mock.emit_portal_presence(false)
+	assert_eq(emissions.size(), 0, "an unowned name is not probed")
+	assert_true(portal.has_capability(Facade.Capability.OPEN_URI))
+
+
 func test_portal_errors_are_forwarded() -> void:
 	var errors := capture(portal, "portal_error")
 	mock.emit_error("OpenURI.OpenURI", "org.freedesktop.DBus.Error.ServiceUnknown")

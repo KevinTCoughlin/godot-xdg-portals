@@ -15,10 +15,10 @@ native smoke test against a fake portal in five modes, also under ASan + UBSan.
 
 ## 0.3.0 — candidates
 
-- **Notification buttons and default actions.** `AddNotification` accepts a
-  `buttons` array and a `default-action`; the facade currently posts title, body
-  and priority only. This needs an API that stays typed without turning into a
-  general `a{sv}` builder.
+- **Notification buttons and default actions.** Done.
+  `add_notification()` takes a default action and
+  `DesktopServicesNotificationButton` values (a label and an action). No
+  target: that would be an arbitrary variant.
 - **Inhibit session state monitoring.** `org.freedesktop.portal.Inhibit` also
   offers `CreateMonitor` and the `StateChanged` signal for
   screensaver-active/session-running state. Useful for pausing on lock.

@@ -115,13 +115,23 @@ func _on_scheme_supported() -> void:
 
 
 func _on_notify() -> void:
+	# Clicking the notification or its button both report the action "open".
+	# There is no target value attached to either.
+	var button := DesktopServicesNotificationButton.new("Open manual", "open")
 	var ok: bool = DesktopServices.add_notification(
 		"demo",
 		"Godot XDG Portals",
 		"Posted from the demo project.",
-		DesktopServices.NotificationPriority.NORMAL
+		DesktopServices.NotificationPriority.NORMAL,
+		"open",
+		[button]
 	)
-	_write("AddNotification: %s" % ("ok" if ok else "failed"))
+	_write(
+		(
+			"AddNotification: %s (default action 'open', button 'Open manual')"
+			% ("ok" if ok else "failed")
+		)
+	)
 
 
 func _on_remove_notify() -> void:
@@ -139,6 +149,10 @@ func _on_power_saver_changed(enabled: bool) -> void:
 
 func _on_request_completed(handle: String, response: int, results: Dictionary) -> void:
 	_write("[signal] request_completed: %s -> %s %s" % [handle, _response_name(response), results])
+	# Success means the inhibition is held. Any later non-success for the same
+	# handle means the portal dropped it; close_request would hit a dead path.
+	if handle == _inhibit_handle and response != DesktopServices.Response.SUCCESS:
+		_inhibit_handle = ""
 
 
 func _on_action_invoked(id: String, action: String, parameters: Array) -> void:

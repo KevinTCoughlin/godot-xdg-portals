@@ -139,8 +139,15 @@ func scheme_supported(scheme: String) -> int:
 	return next_scheme_supported
 
 
-func add_notification(id: String, title: String, body: String, priority: String) -> bool:
-	_record("add_notification", [id, title, body, priority])
+func add_notification(
+	id: String,
+	title: String,
+	body: String,
+	priority: String,
+	default_action: String = "",
+	buttons: Array = []
+) -> bool:
+	_record("add_notification", [id, title, body, priority, default_action, buttons])
 	return next_notification_succeeds
 
 
@@ -171,6 +178,11 @@ func emit_action(id: String, action: String, parameters: Array = []) -> void:
 ## Emits [signal DesktopServicesBackend.portal_error].
 func emit_error(context: String, message: String) -> void:
 	portal_error.emit(context, message)
+
+
+## Emits [signal DesktopServicesBackend.portal_presence_changed].
+func emit_portal_presence(available: bool) -> void:
+	portal_presence_changed.emit(available)
 
 
 ## Returns the recorded calls for [param method], in order.

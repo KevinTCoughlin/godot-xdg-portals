@@ -167,8 +167,170 @@ static gboolean emit_response(gpointer data) {
 	return G_SOURCE_REMOVE;
 }
 
+// An ActionInvoked the fixture will emit. `action` NULL means the historical
+// stand-in "open-folder", used when the notification named no default action.
+typedef struct {
+	gchar *id;
+	gchar *action;
+} ScheduledAction;
+
+static void scheduled_action_free(gpointer data) {
+	ScheduledAction *scheduled = data;
+	g_free(scheduled->id);
+	g_free(scheduled->action);
+	g_free(scheduled);
+}
+
+typedef struct {
+	gchar *label;
+	gchar *action;
+} ParsedButton;
+
+// Copies a string field. Empty is allowed for title, body and priority, and
+// rejected for an action or a button label: those are tokens the addon
+// promises to send non-empty.
+static gchar *assign_string_field(const gchar *key, GVariant *value, gchar **slot, gboolean allow_empty) {
+	if (*slot != NULL) {
+		return g_strdup_printf("duplicate %s", key);
+	}
+	if (!g_variant_is_of_type(value, G_VARIANT_TYPE_STRING)) {
+		return g_strdup_printf("%s is not a string", key);
+	}
+	const gchar *text = g_variant_get_string(value, NULL);
+	if (!allow_empty && text[0] == '\0') {
+		return g_strdup_printf("%s is empty", key);
+	}
+	*slot = g_strdup(text);
+	return NULL;
+}
+
+static void free_parsed_buttons(ParsedButton *parsed, guint count) {
+	for (guint i = 0; i < count; i++) {
+		g_free(parsed[i].label);
+		g_free(parsed[i].action);
+	}
+}
+
+// Each button is exactly {label, action}, both strings. A `target` key, or
+// any other key, is a client building a variant this addon must not send.
+static gchar *parse_buttons(GVariant *value, ParsedButton *parsed, guint *r_count) {
+	if (!g_variant_is_of_type(value, G_VARIANT_TYPE("aa{sv}"))) {
+		return g_strdup("buttons is not aa{sv}");
+	}
+	const gsize count = g_variant_n_children(value);
+	if (count > 16) {
+		return g_strdup("too many buttons");
+	}
+	for (gsize i = 0; i < count; i++) {
+		GVariant *button = g_variant_get_child_value(value, i);
+		gchar *label = NULL;
+		gchar *action = NULL;
+		gchar *reason = NULL;
+		GVariantIter fields;
+		g_variant_iter_init(&fields, button);
+		GVariant *field = NULL;
+		while (reason == NULL && (field = g_variant_iter_next_value(&fields)) != NULL) {
+			const gchar *key = NULL;
+			GVariant *item = NULL;
+			g_variant_get(field, "{&sv}", &key, &item);
+			if (g_strcmp0(key, "label") == 0) {
+				reason = assign_string_field("button label", item, &label, FALSE);
+			} else if (g_strcmp0(key, "action") == 0) {
+				reason = assign_string_field("button action", item, &action, FALSE);
+			} else {
+				reason = g_strdup_printf("button has unexpected key %s", key);
+			}
+			g_clear_pointer(&item, g_variant_unref);
+			g_variant_unref(field);
+		}
+		if (reason == NULL && (label == NULL || action == NULL)) {
+			reason = g_strdup("button is missing label or action");
+		}
+		if (reason == NULL) {
+			parsed[*r_count].label = g_steal_pointer(&label);
+			parsed[*r_count].action = g_steal_pointer(&action);
+			*r_count += 1;
+		}
+		g_free(label);
+		g_free(action);
+		g_variant_unref(button);
+		if (reason != NULL) {
+			return reason;
+		}
+	}
+	return NULL;
+}
+
+// The id "smoke-actions" is the native smoke test's notification. The payload
+// has to be exactly what that test posts, including both buttons and no target,
+// or AddNotification fails and the test cannot pass by accident.
+static gchar *smoke_actions_rejection(const gchar *title, const gchar *body, const gchar *priority,
+		const gchar *default_action, const ParsedButton *parsed, guint count) {
+	if (g_strcmp0(title, "Title") != 0 || g_strcmp0(body, "Body") != 0 || g_strcmp0(priority, "high") != 0 ||
+			g_strcmp0(default_action, "open") != 0) {
+		return g_strdup("smoke-actions fields are not title/body/priority high/default-action open");
+	}
+	if (count != 2 || g_strcmp0(parsed[0].label, "Open") != 0 || g_strcmp0(parsed[0].action, "open") != 0 ||
+			g_strcmp0(parsed[1].label, "Dismiss") != 0 || g_strcmp0(parsed[1].action, "dismiss") != 0) {
+		return g_strdup("smoke-actions buttons are not Open/open then Dismiss/dismiss");
+	}
+	return NULL;
+}
+
+// NULL when the payload is acceptable. On success *r_default_action is a copy
+// of default-action, or NULL when that key was absent.
+static gchar *notification_rejection(GVariant *notification, const gchar *id, gchar **r_default_action) {
+	*r_default_action = NULL;
+	gchar *reason = NULL;
+	gchar *title = NULL;
+	gchar *body = NULL;
+	gchar *priority = NULL;
+	gchar *default_action = NULL;
+	ParsedButton parsed[16];
+	guint n_buttons = 0;
+	memset(parsed, 0, sizeof(parsed));
+
+	GVariantIter entries;
+	g_variant_iter_init(&entries, notification);
+	GVariant *entry = NULL;
+	while (reason == NULL && (entry = g_variant_iter_next_value(&entries)) != NULL) {
+		const gchar *key = NULL;
+		GVariant *value = NULL;
+		g_variant_get(entry, "{&sv}", &key, &value);
+		if (g_strcmp0(key, "title") == 0) {
+			reason = assign_string_field("title", value, &title, TRUE);
+		} else if (g_strcmp0(key, "body") == 0) {
+			reason = assign_string_field("body", value, &body, TRUE);
+		} else if (g_strcmp0(key, "priority") == 0) {
+			reason = assign_string_field("priority", value, &priority, TRUE);
+		} else if (g_strcmp0(key, "default-action") == 0) {
+			reason = assign_string_field("default-action", value, &default_action, FALSE);
+		} else if (g_strcmp0(key, "buttons") == 0) {
+			reason = parse_buttons(value, parsed, &n_buttons);
+		} else {
+			reason = g_strdup_printf("unexpected key %s", key);
+		}
+		g_clear_pointer(&value, g_variant_unref);
+		g_variant_unref(entry);
+	}
+	if (reason == NULL && g_strcmp0(id, "smoke-actions") == 0) {
+		reason = smoke_actions_rejection(title, body, priority, default_action, parsed, n_buttons);
+	}
+	if (reason == NULL && default_action != NULL) {
+		*r_default_action = g_strdup(default_action);
+	}
+	g_free(title);
+	g_free(body);
+	g_free(priority);
+	g_free(default_action);
+	free_parsed_buttons(parsed, n_buttons);
+	return reason;
+}
+
 static gboolean emit_action_invoked(gpointer data) {
-	gchar *id = data;
+	ScheduledAction *scheduled = data;
+	const gchar *id = scheduled->id;
+	const gchar *action = scheduled->action != NULL ? scheduled->action : "open-folder";
 	GVariantBuilder parameters;
 	g_variant_builder_init(&parameters, G_VARIANT_TYPE("av"));
 	g_variant_builder_add(&parameters, "v", g_variant_new_string("slot-3"));
@@ -211,7 +373,7 @@ static gboolean emit_action_invoked(gpointer data) {
 
 	g_dbus_connection_emit_signal(bus, NULL, PORTAL_PATH,
 			"org.freedesktop.portal.Notification", "ActionInvoked",
-			g_variant_new("(ss@av)", id, "open-folder", g_variant_builder_end(&parameters)), NULL);
+			g_variant_new("(ss@av)", id, action, g_variant_builder_end(&parameters)), NULL);
 	return G_SOURCE_REMOVE;
 }
 
@@ -296,8 +458,14 @@ static void handle_method_call(GDBusConnection *connection, const gchar *sender,
 			g_dbus_method_invocation_return_value(invocation,
 					g_variant_new("(i)", game_mode_status_for(pid)));
 		} else if (g_strcmp0(method_name, "RegisterGame") == 0) {
-			g_hash_table_add(registered_pids, GINT_TO_POINTER(pid));
-			g_dbus_method_invocation_return_value(invocation, g_variant_new("(i)", 0));
+			// The real portal rejects a second registration of a pid the daemon
+			// already knows, with -1. A set that answered 0 both times hid that.
+			if (g_hash_table_contains(registered_pids, GINT_TO_POINTER(pid))) {
+				g_dbus_method_invocation_return_value(invocation, g_variant_new("(i)", -1));
+			} else {
+				g_hash_table_add(registered_pids, GINT_TO_POINTER(pid));
+				g_dbus_method_invocation_return_value(invocation, g_variant_new("(i)", 0));
+			}
 		} else if (g_strcmp0(method_name, "UnregisterGame") == 0) {
 			const gboolean was_registered = g_hash_table_remove(registered_pids, GINT_TO_POINTER(pid));
 			g_dbus_method_invocation_return_value(invocation,
@@ -373,9 +541,27 @@ static void handle_method_call(GDBusConnection *connection, const gchar *sender,
 	if (g_strcmp0(interface_name, "org.freedesktop.portal.Notification") == 0) {
 		if (g_strcmp0(method_name, "AddNotification") == 0) {
 			const gchar *id = NULL;
-			g_variant_get_child(parameters, 0, "&s", &id);
+			GVariant *notification = NULL;
+			g_variant_get(parameters, "(&s@a{sv})", &id, &notification);
+			gchar *action = NULL;
+			gchar *reason = notification_rejection(notification, id, &action);
+			g_variant_unref(notification);
+			if (reason != NULL) {
+				g_printerr("fake-portal: notification %s rejected: %s\n", id, reason);
+				g_dbus_method_invocation_return_error(invocation, G_DBUS_ERROR, G_DBUS_ERROR_INVALID_ARGS,
+						"notification payload rejected: %s", reason);
+				g_free(reason);
+				g_free(action);
+				return;
+			}
+			printf("fake-portal: notification %s default-action=%s\n", id,
+					action != NULL ? action : "(none)");
+			fflush(stdout);
 			g_dbus_method_invocation_return_value(invocation, NULL);
-			g_timeout_add_full(G_PRIORITY_DEFAULT, 50, emit_action_invoked, g_strdup(id), g_free);
+			ScheduledAction *scheduled = g_new0(ScheduledAction, 1);
+			scheduled->id = g_strdup(id);
+			scheduled->action = action;
+			g_timeout_add_full(G_PRIORITY_DEFAULT, 50, emit_action_invoked, scheduled, scheduled_action_free);
 			return;
 		}
 		if (g_strcmp0(method_name, "RemoveNotification") == 0) {

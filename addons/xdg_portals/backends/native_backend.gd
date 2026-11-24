@@ -51,6 +51,7 @@ func _bind(native: RefCounted) -> void:
 	_native.connect("request_completed", _on_request_completed)
 	_native.connect("notification_action_invoked", _on_notification_action_invoked)
 	_native.connect("portal_error", _on_portal_error)
+	_native.connect("portal_presence_changed", _on_portal_presence_changed)
 
 
 func get_backend_name() -> String:
@@ -166,10 +167,29 @@ func scheme_supported(scheme: String) -> int:
 	return int(_native.call("scheme_supported", scheme))
 
 
-func add_notification(id: String, title: String, body: String, priority: String) -> bool:
+func add_notification(
+	id: String,
+	title: String,
+	body: String,
+	priority: String,
+	default_action: String = "",
+	buttons: Array = []
+) -> bool:
 	if _native == null:
 		return false
-	return bool(_native.call("add_notification", id, title, body, priority))
+	# Two parallel string lists, not a dictionary: the extension assembles the
+	# portal's a{sv} from these fields alone and cannot be handed extra keys.
+	var labels := PackedStringArray()
+	var actions := PackedStringArray()
+	for button in buttons:
+		var typed := button as DesktopServicesNotificationButton
+		if typed == null:
+			return false
+		labels.append(typed.label)
+		actions.append(typed.action)
+	return bool(
+		_native.call("add_notification", id, title, body, priority, default_action, labels, actions)
+	)
 
 
 func remove_notification(id: String) -> bool:
@@ -198,3 +218,7 @@ func _on_notification_action_invoked(id: String, action: String, parameters: Arr
 
 func _on_portal_error(context: String, message: String) -> void:
 	portal_error.emit(context, message)
+
+
+func _on_portal_presence_changed(available: bool) -> void:
+	portal_presence_changed.emit(available)
