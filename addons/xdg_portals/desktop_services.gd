@@ -38,7 +38,8 @@ signal power_saver_changed(enabled: bool)
 signal request_completed(handle: String, response: int, results: Dictionary)
 
 ## Emitted when the user activates an action on a notification posted with
-## [method add_notification].
+## [method add_notification]. [param action] is the default action or a button
+## action from that call.
 signal notification_action_invoked(id: String, action: String, parameters: Array)
 
 ## Emitted when a portal call fails. [param context] names the D-Bus member.
@@ -115,6 +116,12 @@ const INTERFACE_NAMES: Dictionary = {
 ## Minimum [code]org.freedesktop.portal.OpenURI[/code] version exposing
 ## [code]SchemeSupported[/code].
 const SCHEME_SUPPORTED_MIN_VERSION: int = 5
+
+## Most buttons [method add_notification] will attach. The portal defines no
+## limit; this one keeps a notification from turning into a menu.
+const MAX_NOTIFICATION_BUTTONS: int = 8
+
+const _MAX_NOTIFICATION_TEXT_LENGTH: int = 128
 
 const _PRIORITY_NAMES: PackedStringArray = ["low", "normal", "high", "urgent"]
 
@@ -410,20 +417,42 @@ func is_scheme_supported(scheme: String) -> Variant:
 
 
 ## Posts a notification under [param id]. Reusing an id replaces the previous
-## notification. Actions the user activates arrive via
-## [signal notification_action_invoked].
+## notification.
+##
+## [param default_action] is the action reported when the user activates the
+## notification itself. Leave it empty for none. [param buttons] are
+## [DesktopServicesNotificationButton] values: a visible label and an action
+## token, and nothing else. There is no target payload. Pressing a button or
+## the notification reports that action on [signal notification_action_invoked].
+##
+## An empty id, a button that is not a [DesktopServicesNotificationButton], an
+## empty or control-character label or action, a repeated button action, more
+## than [constant MAX_NOTIFICATION_BUTTONS] buttons, or a default action with a
+## control character is rejected locally: the call returns [code]false[/code],
+## emits [signal portal_error], and nothing reaches the bus. An empty default
+## action is "no default action", not an error.
 func add_notification(
 	id: String,
 	title: String,
 	body: String = "",
-	priority: NotificationPriority = NotificationPriority.NORMAL
+	priority: NotificationPriority = NotificationPriority.NORMAL,
+	default_action: String = "",
+	buttons: Array = []
 ) -> bool:
 	if not has_capability(Capability.NOTIFICATION):
 		return false
 	if id.is_empty():
 		push_error("DesktopServices.add_notification() requires a non-empty id.")
+		portal_error.emit("Notification.AddNotification", "A notification id must not be empty.")
 		return false
-	return _backend.add_notification(id, title, body, _priority_name(priority))
+	var rejection := _notification_rejection(default_action, buttons)
+	if not rejection.is_empty():
+		push_error("DesktopServices.add_notification(): %s" % rejection)
+		portal_error.emit("Notification.AddNotification", rejection)
+		return false
+	return _backend.add_notification(
+		id, title, body, _priority_name(priority), default_action, buttons
+	)
 
 
 ## Withdraws the notification previously posted under [param id].
@@ -537,6 +566,58 @@ func _on_portal_presence_changed(available: bool) -> void:
 
 func _resolve_pid(pid: int) -> int:
 	return OS.get_process_id() if pid == 0 else pid
+
+
+## Empty when [param default_action] and [param buttons] may be posted.
+## Otherwise the reason they were rejected, for [signal portal_error].
+func _notification_rejection(default_action: String, buttons: Array) -> String:
+	var reason := ""
+	var default_problem := _notification_text_problem(default_action)
+	if not default_action.is_empty() and not default_problem.is_empty():
+		reason = "The default action %s." % default_problem
+	elif buttons.size() > MAX_NOTIFICATION_BUTTONS:
+		reason = "At most %d notification buttons are accepted." % MAX_NOTIFICATION_BUTTONS
+	else:
+		var seen: Dictionary = {}
+		for button in buttons:
+			# The parameter is an untyped Array on purpose: a GDScript literal
+			# such as [button] is untyped, and a typed parameter would reject
+			# that call before this function could report it honestly.
+			if not button is DesktopServicesNotificationButton:
+				reason = "Each button must be a DesktopServicesNotificationButton."
+			else:
+				var typed: DesktopServicesNotificationButton = button
+				var label_problem := _notification_text_problem(typed.label)
+				var action_problem := _notification_text_problem(typed.action)
+				if not label_problem.is_empty():
+					reason = "A notification button label %s." % label_problem
+				elif not action_problem.is_empty():
+					reason = "A notification button action %s." % action_problem
+				elif seen.has(typed.action):
+					reason = (
+						"Notification button actions must be unique; '%s' is repeated."
+						% typed.action
+					)
+				else:
+					seen[typed.action] = true
+			if not reason.is_empty():
+				break
+	return reason
+
+
+## Empty when [param text] may be used as a label or an action token.
+## Otherwise a sentence fragment: "must not be empty", and so on. An action is
+## a token the game gets back, not a D-Bus value the game builds.
+func _notification_text_problem(text: String) -> String:
+	if text.is_empty():
+		return "must not be empty"
+	if text.length() > _MAX_NOTIFICATION_TEXT_LENGTH:
+		return "must be at most %d characters" % _MAX_NOTIFICATION_TEXT_LENGTH
+	for index: int in text.length():
+		var c: int = text.unicode_at(index)
+		if c < 32 or c == 127:
+			return "must not contain a control character"
+	return ""
 
 
 func _priority_name(priority: NotificationPriority) -> String:

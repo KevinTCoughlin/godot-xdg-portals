@@ -172,7 +172,9 @@ func add_notification(
     id: String,
     title: String,
     body: String = "",
-    priority: NotificationPriority = NotificationPriority.NORMAL
+    priority: NotificationPriority = NotificationPriority.NORMAL,
+    default_action: String = "",
+    buttons: Array = []
 ) -> bool
 func remove_notification(id: String) -> bool
 signal notification_action_invoked(id: String, action: String, parameters: Array)
@@ -182,10 +184,30 @@ Reusing an `id` replaces the notification posted under it. An empty `id` is
 rejected locally. Priorities map to the portal's string names: `"low"`,
 `"normal"`, `"high"`, `"urgent"`.
 
-`notification_action_invoked` forwards the portal's `ActionInvoked` signal.
-`parameters` holds the D-Bus payload converted to Godot values: byte arrays
-(`ay`) become `PackedByteArray`, and dictionaries keep their keys whatever their
-type (`a{us}` becomes a `Dictionary` keyed by `int`).
+`default_action` is the action name reported when the user activates the
+notification itself. An empty string means there is no default action.
+`buttons` is a list of `DesktopServicesNotificationButton` (`label`, `action`),
+at most `MAX_NOTIFICATION_BUTTONS` (8). The parameter is an untyped `Array` so
+a call can pass a literal `[button]`; an element of any other type is rejected.
+Button actions must be unique. A label
+or action must be non-empty, at most 128 characters, and must not contain an
+ASCII control character; the same rule applies to a non-empty default action.
+There is no target on a button or on the default action. A target would be an
+arbitrary D-Bus variant, and this addon does not build those.
+
+```gdscript
+var open := DesktopServicesNotificationButton.new("Open", "open")
+DesktopServices.add_notification("save", "Saved", "", DesktopServices.NotificationPriority.NORMAL, "open", [open])
+```
+
+A rejected notification returns `false`, emits `portal_error`, and sends
+nothing. `notification_action_invoked` forwards the portal's `ActionInvoked`
+signal. `action` is the default action or a button action from the call that
+posted it. `parameters` holds the D-Bus payload converted to Godot values:
+byte arrays (`ay`) become `PackedByteArray`, and dictionaries keep their keys
+whatever their type (`a{us}` becomes a `Dictionary` keyed by `int`). This
+addon never sends a target, so `parameters` is empty unless the portal
+attaches one of its own.
 
 ## Signals
 

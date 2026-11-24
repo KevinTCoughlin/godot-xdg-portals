@@ -21,7 +21,7 @@ call reports "unavailable" instead of crashing.
 | `org.freedesktop.portal.Inhibit` | `Inhibit`, plus `org.freedesktop.portal.Request.Close` | `inhibit()`, `close_request()` |
 | `org.freedesktop.portal.PowerProfileMonitor` | `power-saver-enabled` property and its change notifications | `is_power_saver_enabled()`, `power_saver_changed` |
 | `org.freedesktop.portal.OpenURI` | `OpenURI`, and `SchemeSupported` on interface version 5+ | `open_uri()`, `is_scheme_supported()` |
-| `org.freedesktop.portal.Notification` | `AddNotification`, `RemoveNotification`, `ActionInvoked` | `add_notification()`, `remove_notification()`, `notification_action_invoked` |
+| `org.freedesktop.portal.Notification` | `AddNotification` (title, body, priority, optional default action and buttons), `RemoveNotification`, `ActionInvoked` | `add_notification()`, `remove_notification()`, `notification_action_invoked` |
 
 Everything goes through `org.freedesktop.portal.Desktop` at
 `/org/freedesktop/portal/desktop` using GLib/GIO directly. The addon never

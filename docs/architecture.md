@@ -173,9 +173,11 @@ one that shows up only after startup. GameMode registrations are not redone:
 
 `src/gvariant_conv.cpp` converts `GVariant` to Godot `Variant` in one direction
 only. There is deliberately no general Godot→`GVariant` converter: notification
-payloads are assembled from a fixed set of fields, and no API path lets game code
-construct an arbitrary D-Bus message. That is what keeps "no unsafe arbitrary
-D-Bus invocation" a structural property rather than a policy.
+payloads are assembled from a fixed set of fields (title, body, priority, an
+optional default action, and buttons that are each a label plus an action). A
+button has no target. No API path lets game code construct an arbitrary D-Bus
+message. That is what keeps "no unsafe arbitrary D-Bus invocation" a structural
+property rather than a policy.
 
 ### Shutdown
 

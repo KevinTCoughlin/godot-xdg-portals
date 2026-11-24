@@ -9,6 +9,7 @@
 
 #include <godot_cpp/classes/ref_counted.hpp>
 #include <godot_cpp/variant/dictionary.hpp>
+#include <godot_cpp/variant/packed_string_array.hpp>
 #include <godot_cpp/variant/string.hpp>
 
 #include <atomic>
@@ -87,8 +88,12 @@ public:
 	int scheme_supported(const godot::String &p_scheme);
 
 	// --- org.freedesktop.portal.Notification ---------------------------------
+	// `p_button_labels` and `p_button_actions` are parallel. The portal value is
+	// built from those two strings only: a button has no target variant.
 	bool add_notification(const godot::String &p_id, const godot::String &p_title,
-			const godot::String &p_body, const godot::String &p_priority);
+			const godot::String &p_body, const godot::String &p_priority,
+			const godot::String &p_default_action, const godot::PackedStringArray &p_button_labels,
+			const godot::PackedStringArray &p_button_actions);
 	bool remove_notification(const godot::String &p_id);
 
 protected:

@@ -129,7 +129,7 @@ shows exactly what the portal answered.
 | 8 | *Open URI* with **Ask** ticked. | The "open with" chooser appears. Dismissing it reports `cancelled`, not `success`. |
 | 9 | *Open URI* with `file:///etc/passwd`. | Rejected locally with a `portal_error`; no dialog, no bus traffic. |
 | 10 | *Scheme supported?* for `https`, then for a nonsense scheme, on a portal older than 1.16. | `true`, `false`, and `unknown` on the old portal — never a guess. |
-| 11 | *Post notification*, then activate it from the notification centre. | The notification appears with the right title/body; `notification_action_invoked` fires. |
+| 11 | *Post notification*, then click the notification or its **Open manual** button. | The notification shows that button. `notification_action_invoked` fires with action `open` for either click. |
 | 12 | *Withdraw notification* while it is still on screen. | It disappears. |
 | 13 | Repeat 1–12 inside a Flatpak built with only `--socket=session-bus` and `--talk-name=org.freedesktop.portal.Desktop`. | Identical behaviour; no additional permission needed. |
 | 14 | Quit the demo while an inhibition is active. | The inhibition is released with the process; no stuck idle-inhibitor remains. |

@@ -231,6 +231,22 @@ func _check_async_paths() -> void:
 	_expect(action[1] == "open-folder", "the action name should be forwarded")
 	_expect(action[2] == ["slot-3"], "the action parameters should be converted")
 
+	# The fake portal rejects this id unless the payload is exactly this
+	# default action and these two buttons, with no target variant. The action
+	# that comes back is the default action we sent, so a client that dropped
+	# the field would not see "open".
+	var buttons: Array[DesktopServicesNotificationButton] = [
+		DesktopServicesNotificationButton.new("Open", "open"),
+		DesktopServicesNotificationButton.new("Dismiss", "dismiss"),
+	]
+	var posted: bool = _portal.add_notification(
+		"smoke-actions", "Title", "Body", _portal.NotificationPriority.HIGH, "open", buttons
+	)
+	_expect(posted, "AddNotification with a default action and buttons should succeed")
+	if posted:
+		var chosen: Array = await _action_for("smoke-actions")
+		_expect(chosen[1] == "open", "the invoked action is the default action that was sent")
+
 	# Container types: `ay` arrives as bytes, and a dictionary keyed by
 	# integers keeps its keys.
 	_portal.add_notification("smoke-types", "Title")

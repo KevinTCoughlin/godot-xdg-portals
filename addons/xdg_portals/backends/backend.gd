@@ -116,8 +116,18 @@ func scheme_supported(_scheme: String) -> int:
 	return -1
 
 
-## [param priority] is one of "low", "normal", "high" or "urgent".
-func add_notification(_id: String, _title: String, _body: String, _priority: String) -> bool:
+## [param _priority] is one of "low", "normal", "high" or "urgent".
+## [param _default_action] is empty when the notification has none.
+## [param _buttons] holds [DesktopServicesNotificationButton] values; an empty
+## array means no buttons. Neither carries a target variant.
+func add_notification(
+	_id: String,
+	_title: String,
+	_body: String,
+	_priority: String,
+	_default_action: String = "",
+	_buttons: Array = []
+) -> bool:
 	return false
 
 

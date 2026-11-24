@@ -115,13 +115,23 @@ func _on_scheme_supported() -> void:
 
 
 func _on_notify() -> void:
+	# Clicking the notification or its button both report the action "open".
+	# There is no target value attached to either.
+	var button := DesktopServicesNotificationButton.new("Open manual", "open")
 	var ok: bool = DesktopServices.add_notification(
 		"demo",
 		"Godot XDG Portals",
 		"Posted from the demo project.",
-		DesktopServices.NotificationPriority.NORMAL
+		DesktopServices.NotificationPriority.NORMAL,
+		"open",
+		[button]
 	)
-	_write("AddNotification: %s" % ("ok" if ok else "failed"))
+	_write(
+		(
+			"AddNotification: %s (default action 'open', button 'Open manual')"
+			% ("ok" if ok else "failed")
+		)
+	)
 
 
 func _on_remove_notify() -> void:

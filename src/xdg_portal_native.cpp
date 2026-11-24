@@ -1206,8 +1206,13 @@ int XdgPortalNative::scheme_supported(const String &p_scheme) {
 // --- Notification -----------------------------------------------------------
 
 bool XdgPortalNative::add_notification(const String &p_id, const String &p_title,
-		const String &p_body, const String &p_priority) {
+		const String &p_body, const String &p_priority, const String &p_default_action,
+		const PackedStringArray &p_button_labels, const PackedStringArray &p_button_actions) {
 	if (connection == nullptr || p_id.is_empty()) {
+		return false;
+	}
+	if (p_button_labels.size() != p_button_actions.size()) {
+		emit_error("Notification.AddNotification", "Notification button labels and actions differ in length.");
 		return false;
 	}
 
@@ -1219,6 +1224,25 @@ bool XdgPortalNative::add_notification(const String &p_id, const String &p_title
 	}
 	if (!p_priority.is_empty()) {
 		g_variant_builder_add(&notification, "{sv}", "priority", g_variant_new_string(p_priority.utf8().get_data()));
+	}
+	if (!p_default_action.is_empty()) {
+		g_variant_builder_add(&notification, "{sv}", "default-action",
+				g_variant_new_string(p_default_action.utf8().get_data()));
+	}
+	if (p_button_labels.size() > 0) {
+		GVariantBuilder buttons;
+		g_variant_builder_init(&buttons, G_VARIANT_TYPE("aa{sv}"));
+		for (int64_t i = 0; i < p_button_labels.size(); i++) {
+			GVariantBuilder button;
+			g_variant_builder_init(&button, G_VARIANT_TYPE("a{sv}"));
+			g_variant_builder_add(&button, "{sv}", "label",
+					g_variant_new_string(p_button_labels[i].utf8().get_data()));
+			g_variant_builder_add(&button, "{sv}", "action",
+					g_variant_new_string(p_button_actions[i].utf8().get_data()));
+			// "a{sv}" consumes the child builder. Only label and action are written.
+			g_variant_builder_add(&buttons, "a{sv}", &button);
+		}
+		g_variant_builder_add(&notification, "{sv}", "buttons", g_variant_builder_end(&buttons));
 	}
 
 	GVariant *reply = call_portal_sync(IFACE_NOTIFICATION, "AddNotification",
@@ -1292,8 +1316,10 @@ void XdgPortalNative::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("open_uri", "uri", "ask", "parent_window"), &XdgPortalNative::open_uri);
 	ClassDB::bind_method(D_METHOD("scheme_supported", "scheme"), &XdgPortalNative::scheme_supported);
 
-	ClassDB::bind_method(D_METHOD("add_notification", "id", "title", "body", "priority"),
-			&XdgPortalNative::add_notification);
+	ClassDB::bind_method(D_METHOD("add_notification", "id", "title", "body", "priority", "default_action",
+								 "button_labels", "button_actions"),
+			&XdgPortalNative::add_notification, DEFVAL(""), DEFVAL(PackedStringArray()),
+			DEFVAL(PackedStringArray()));
 	ClassDB::bind_method(D_METHOD("remove_notification", "id"), &XdgPortalNative::remove_notification);
 
 	ADD_SIGNAL(MethodInfo("power_saver_changed", PropertyInfo(Variant::BOOL, "enabled")));

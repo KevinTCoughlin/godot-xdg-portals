@@ -139,8 +139,15 @@ func scheme_supported(scheme: String) -> int:
 	return next_scheme_supported
 
 
-func add_notification(id: String, title: String, body: String, priority: String) -> bool:
-	_record("add_notification", [id, title, body, priority])
+func add_notification(
+	id: String,
+	title: String,
+	body: String,
+	priority: String,
+	default_action: String = "",
+	buttons: Array = []
+) -> bool:
+	_record("add_notification", [id, title, body, priority, default_action, buttons])
 	return next_notification_succeeds
 
 

@@ -17,9 +17,20 @@ Before 1.0 the public API may change in a minor release.
   backend emits it when the portal bus name appears or disappears after
   startup. The facade refreshes capabilities when a new owner appears.
   Backends that never emit it behave as before.
+- `DesktopServicesNotificationButton`, and optional `default_action` and
+  `buttons` arguments on `add_notification()`. A button is a label plus an
+  action token. There is no action target, because that would be an arbitrary
+  D-Bus variant. At most `MAX_NOTIFICATION_BUTTONS` (8) buttons, with unique
+  actions. An empty id, an empty or control-character label or action, a
+  repeated button action, or too many buttons is rejected locally.
 
 ### Changed
 
+- **Breaking (backend authors only):** `add_notification()` on the backend
+  contract takes `default_action` and `buttons` after `priority`. Custom
+  backends that override the old four-argument method must accept the two new
+  arguments. Game code can keep calling `add_notification()` with the previous
+  arguments; both new ones default to empty.
 - The non-blocking Godot 4.8 preview in CI now runs against 4.8-beta4
   (`b070e63b1`) instead of 4.8-beta3.
 
