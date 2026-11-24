@@ -4,8 +4,9 @@
 class_name DesktopServicesNullBackend
 extends DesktopServicesBackend
 
-## Backend used wherever desktop portals cannot exist: Windows, macOS, mobile,
-## web, and Linux sessions without a reachable session bus.
+## Backend used wherever desktop portals cannot exist: Windows, mobile, web,
+## Linux sessions without a reachable session bus, and macOS when
+## [DesktopServicesMacBackend] could not be created.
 ##
 ## Every call is a well-behaved no-op that reports "unknown" or "failed" rather
 ## than pretending an unavailable operation succeeded. Nothing here can crash,

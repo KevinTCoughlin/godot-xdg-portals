@@ -160,8 +160,14 @@ unconditionally, and watches the portal's bus name. The subscriptions name the
 portal's well-known name as their sender, so GLib follows whichever process owns
 it: a portal that was slow or absent at startup, or that restarts, is still
 heard. When the name's owner goes away or changes, pending requests are failed
-as above, the cached interface versions are dropped, and the power-saver state
-is marked unknown and re-read from the new owner.
+as above, and an Inhibit that had already succeeded is completed again with
+`Response.OTHER` — the inhibition died with that instance, so the caller's
+handle must not keep looking live. The cached interface versions are dropped,
+and the power-saver state is marked unknown and re-read from the new owner.
+The facade refreshes capabilities when a portal instance appears, including
+one that shows up only after startup. GameMode registrations are not redone:
+`gamemoded` tracks the game process, not the portal process, and a second
+`RegisterGame` for a pid it already knows is rejected.
 
 ### Type conversion
 

@@ -23,6 +23,14 @@ signal notification_action_invoked(id: String, action: String, parameters: Array
 ## Emitted when a portal call fails. [param context] is the D-Bus member that failed.
 signal portal_error(context: String, message: String)
 
+## Emitted when the portal service appears or disappears after startup.
+## [param available] is true when a process owns the portal bus name.
+##
+## The native backend emits this. Other backends never do, which is the same
+## as a portal that stays up for the whole session: the facade only refreshes
+## capabilities when a new owner appears.
+signal portal_presence_changed(available: bool)
+
 
 ## Short identifier used for diagnostics, e.g. [code]"native"[/code].
 func get_backend_name() -> String:

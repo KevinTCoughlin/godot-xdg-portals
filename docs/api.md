@@ -32,11 +32,15 @@ capabilities, so `get_interface_version(c) >= 0` is *not* an availability check.
 Use it for diagnostics, and for gating on a portal member that needs a minimum
 version — `SchemeSupported` is the only such case here.
 
-Capability discovery runs once at backend selection. Call
-`refresh_capabilities()` if the portal service is restarted mid-session. The
-native backend reads every interface version in parallel at startup and caches
-them for as long as the same portal instance runs, so a refresh after a restart
-reads them again and one without a restart costs no bus traffic.
+Capability discovery runs at backend selection, and again when a new portal
+instance takes the bus name — the facade calls `refresh_capabilities()` itself
+then, including when the portal was absent at startup and appears later.
+`refresh_capabilities()` remains for a backend that does not report presence,
+and for tests. The native backend reads every interface version in parallel
+and caches them for as long as the same portal instance runs, so a refresh
+after a restart reads them again and one without a restart costs no bus
+traffic. A disappearance is not probed: the name is unowned, and calling it
+would only stall or race the session's own restart.
 
 ## GameMode
 
@@ -61,10 +65,23 @@ The enum's values are the addon's own, not the portal's codes: compare against
 the names. `REJECTED` (`2`) is deprecated and never returned — GameMode has no
 such state; earlier versions misread the portal's `2` as it.
 
-`request_game_mode()` and `release_game_mode()` return `true` only for the
-portal's documented success code (`0`). A registration still held when the
-`DesktopServices` node leaves the tree, or when `set_backend()` replaces the
-backend, is released then.
+`request_game_mode()` is idempotent for a pid this facade already registered:
+a second call returns `true` and does not call `RegisterGame` again. The
+portal rejects a duplicate with `-1` — gamemoded already knows that pid — so
+calling through would report failure for a hold that exists. A rejection when
+this facade holds nothing returns `false` and records no hold. That includes
+GameMode being missing, and another client (the engine's own GameMode
+integration, on versions that register the process at startup) already having
+registered the pid. `query_game_mode()` tells those apart.
+
+`release_game_mode()` releases only a registration made with
+`request_game_mode()`. It returns `false` and does not call `UnregisterGame`
+when this facade holds nothing for that pid, so it cannot drop a registration
+another client made. Both return `true` only when the hold is actually taken
+or dropped; a registration still held when the `DesktopServices` node leaves
+the tree, or when `set_backend()` replaces the backend, is released then.
+GameMode itself is held by `gamemoded` for the game process, so a portal
+restart does not drop it and the facade does not register again.
 
 These three calls are synchronous with a 2-second timeout — they are
 non-interactive and show no UI.
@@ -101,7 +118,11 @@ the result as "what can be requested here", never as "what will happen".
 `inhibit()` returns immediately with a request handle — the portal's eventual
 answer arrives on `request_completed`. The inhibition stays in effect until the
 handle is closed with `close_request()` (which calls
-`org.freedesktop.portal.Request.Close`) or the application exits.
+`org.freedesktop.portal.Request.Close`), the application exits, or the portal
+service exits or is replaced. That last case emits `request_completed` again
+for the same handle with `Response.OTHER` (and a `portal_error`): the
+inhibition died with that portal instance, and the handle is dead —
+`close_request()` is not needed and would fail.
 The returned handle remains the identifier in `request_completed` and
 `close_request()` even if the portal returns a different internal object path.
 
@@ -170,7 +191,7 @@ type (`a{us}` becomes a `Dictionary` keyed by `int`).
 
 | Signal | Arguments | Emitted when |
 | --- | --- | --- |
-| `capabilities_changed` | — | A backend is selected or injected, or `refresh_capabilities()` runs. |
+| `capabilities_changed` | — | A backend is selected or injected, `refresh_capabilities()` runs, or a new portal instance takes the bus name. |
 | `power_saver_changed` | `enabled: bool` | The desktop's power-saver state changes. |
 | `request_completed` | `handle: String, response: int, results: Dictionary` | An interactive request finishes. |
 | `notification_action_invoked` | `id: String, action: String, parameters: Array` | The user activates a notification action. |
@@ -179,7 +200,10 @@ type (`a{us}` becomes a `Dictionary` keyed by `int`).
 If an interactive call fails outright, or the portal service exits or is
 replaced before answering, the addon still emits `request_completed` for its
 handle with `Response.OTHER` (and a `portal_error` saying why), so a caller
-waiting on a handle is never stranded.
+waiting on a handle is never stranded. An inhibit that had already succeeded
+emits `request_completed` a second time, with `Response.OTHER`, when that
+happens: the first emission granted the inhibition, and the second says it
+has ended.
 
 ## Enums
 

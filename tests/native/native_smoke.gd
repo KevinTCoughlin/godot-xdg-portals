@@ -27,6 +27,8 @@ var _failures: PackedStringArray = []
 var _portal: Node = null
 var _backend: DesktopServicesBackend = null
 var _mode: String = ""
+## Set by [_on_capabilities_refreshed] during the restart pass.
+var _saw_capability_refresh: bool = false
 
 
 func _initialize() -> void:
@@ -123,10 +125,22 @@ func _check_game_mode() -> void:
 		_portal.query_game_mode() == _portal.GameModeStatus.REGISTERED,
 		"after registering, this process is registered, got %s" % _portal.query_game_mode()
 	)
+	# The portal rejects a second RegisterGame for a pid it already knows. The
+	# facade must still report success, and one release must drop the only hold.
+	_expect(_portal.request_game_mode(), "a second request does not take a second hold")
+	_expect(
+		_portal.query_game_mode() == _portal.GameModeStatus.REGISTERED,
+		"the process stays registered after the second request"
+	)
 	_expect(_portal.release_game_mode(), "UnregisterGame should succeed")
 	_expect(
 		_portal.query_game_mode() == before,
 		"after releasing, GameMode is back to %s, got %s" % [before, _portal.query_game_mode()]
+	)
+	_expect(not _portal.release_game_mode(), "releasing a pid this facade does not hold fails")
+	_expect(
+		_portal.query_game_mode() == before,
+		"that release did not change GameMode, got %s" % _portal.query_game_mode()
 	)
 
 
@@ -322,12 +336,40 @@ func _check_slow_start() -> void:
 ## The portal exits after answering OpenURI, without ever sending its
 ## Response, and a fresh instance takes its place.
 func _check_restart() -> void:
+	# Granted before the crash, so the restart has an inhibition to drop. A
+	# caller that only saw the success would keep believing the session is
+	# inhibited after the Request object died with the old portal.
+	var inhibit_handle: String = _portal.inhibit(_portal.InhibitFlags.IDLE, "Held across restart")
+	_expect(inhibit_handle != "", "inhibit should return a handle")
+	var inhibit_ok: Array = await _portal.request_completed
+	_expect(
+		inhibit_ok[0] == inhibit_handle, "the inhibition is acknowledged on the caller's handle"
+	)
+	_expect(inhibit_ok[1] == _portal.Response.SUCCESS, "and the first instance grants it")
+
+	_saw_capability_refresh = false
+	_portal.capabilities_changed.connect(_on_capabilities_refreshed)
+
 	var uri_handle: String = _portal.open_uri("https://godotengine.org")
 	_expect(uri_handle != "", "open_uri should return a handle")
-	var uri_result: Array = await _portal.request_completed
-	_expect(uri_result[0] == uri_handle, "the pending request completes when the portal goes away")
+	var lost: Dictionary = {}
+	for _completion in 2:
+		var result: Array = await _portal.request_completed
+		lost[result[0]] = result[1]
 	_expect(
-		uri_result[1] == _portal.Response.OTHER, "and is reported as OTHER, got %s" % uri_result[1]
+		int(lost.get(uri_handle, -1)) == _portal.Response.OTHER,
+		"the pending request completes as OTHER when the portal goes away, got %s" % [lost]
+	)
+	_expect(
+		int(lost.get(inhibit_handle, -1)) == _portal.Response.OTHER,
+		"a held inhibition is reported as ended, got %s" % [lost]
+	)
+	if not _saw_capability_refresh:
+		await _portal.capabilities_changed
+	_expect(_saw_capability_refresh, "capabilities are refreshed when the new portal appears")
+	_expect(
+		_portal.get_interface_version(_portal.Capability.OPEN_URI) == 5,
+		"the refreshed OpenURI version comes from the new instance"
 	)
 
 	# The restarted instance toggles power-saver like the first one did. Seeing
@@ -398,6 +440,10 @@ func _expect(condition: bool, message: String) -> void:
 func _fail(message: String) -> void:
 	_failures.append(message)
 	print("  FAIL %s" % message)
+
+
+func _on_capabilities_refreshed() -> void:
+	_saw_capability_refresh = true
 
 
 func _on_timeout() -> void:

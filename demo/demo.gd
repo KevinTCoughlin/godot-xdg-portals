@@ -139,6 +139,10 @@ func _on_power_saver_changed(enabled: bool) -> void:
 
 func _on_request_completed(handle: String, response: int, results: Dictionary) -> void:
 	_write("[signal] request_completed: %s -> %s %s" % [handle, _response_name(response), results])
+	# Success means the inhibition is held. Any later non-success for the same
+	# handle means the portal dropped it; close_request would hit a dead path.
+	if handle == _inhibit_handle and response != DesktopServices.Response.SUCCESS:
+		_inhibit_handle = ""
 
 
 func _on_action_invoked(id: String, action: String, parameters: Array) -> void:

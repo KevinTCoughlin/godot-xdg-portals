@@ -24,8 +24,9 @@
 #   slow-start   The portal stalls its first property read past the client's
 #                timeout; change notifications must still arrive.
 #   restart      The portal exits with an OpenURI request pending and is
-#                started again; the request must complete, and the client must
-#                follow the new instance.
+#                started again. The pending request and a previously granted
+#                inhibition must complete as OTHER, capabilities must refresh,
+#                and the client must follow the new instance.
 #   wedged-bus   The extension is pointed at a socket that accepts connections
 #                and never answers; connecting must give up in bounded time.
 #                Godot itself keeps the real session bus: it talks D-Bus too,

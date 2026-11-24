@@ -173,6 +173,11 @@ func emit_error(context: String, message: String) -> void:
 	portal_error.emit(context, message)
 
 
+## Emits [signal DesktopServicesBackend.portal_presence_changed].
+func emit_portal_presence(available: bool) -> void:
+	portal_presence_changed.emit(available)
+
+
 ## Returns the recorded calls for [param method], in order.
 func calls_to(method: String) -> Array[Dictionary]:
 	var matches: Array[Dictionary] = []

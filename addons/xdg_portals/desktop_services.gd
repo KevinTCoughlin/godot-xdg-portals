@@ -169,7 +169,7 @@ func get_backend() -> DesktopServicesBackend:
 	return _backend
 
 
-## Short name of the active backend: "native", "null" or "mock".
+## Short name of the active backend: "native", "macos", "null" or "mock".
 func get_backend_name() -> String:
 	_ensure_backend()
 	return _backend.get_backend_name()
@@ -259,12 +259,22 @@ func query_game_mode(pid: int = 0) -> GameModeStatus:
 ## Asks GameMode to apply its optimisations to [param pid] ([code]0[/code] for the
 ## current process). Returns [code]false[/code] when the request did not succeed.
 ##
+## Idempotent for a pid this facade already registered: a second call returns
+## [code]true[/code] and does not call [code]RegisterGame[/code] again. The
+## portal rejects a duplicate with [code]-1[/code] — the daemon already knows
+## that pid — so calling through would report failure for a hold that exists.
+## A rejection when this facade holds nothing (GameMode missing, or another
+## client such as the engine already registered the pid) returns [code]false[/code]
+## and records no hold. [method query_game_mode] tells those apart.
+##
 ## A registration still held when this node leaves the tree, or when
 ## [method set_backend] replaces the backend, is released then.
 func request_game_mode(pid: int = 0) -> bool:
 	if not has_capability(Capability.GAME_MODE):
 		return false
 	var resolved: int = _resolve_pid(pid)
+	if _game_mode_pids.has(resolved):
+		return true
 	if _backend.game_mode_register(resolved) != 0:
 		return false
 	_game_mode_pids[resolved] = true
@@ -272,10 +282,16 @@ func request_game_mode(pid: int = 0) -> bool:
 
 
 ## Releases a registration made with [method request_game_mode].
+##
+## Returns [code]false[/code] without calling [code]UnregisterGame[/code] when
+## this facade holds nothing for [param pid]. That includes a request the
+## portal rejected, so a release cannot drop a registration another client made.
 func release_game_mode(pid: int = 0) -> bool:
 	if not has_capability(Capability.GAME_MODE):
 		return false
 	var resolved: int = _resolve_pid(pid)
+	if not _game_mode_pids.has(resolved):
+		return false
 	if _backend.game_mode_unregister(resolved) != 0:
 		return false
 	_game_mode_pids.erase(resolved)
@@ -290,7 +306,10 @@ func release_game_mode(pid: int = 0) -> bool:
 ##
 ## Returns the request handle to pass to [method close_request], or an empty
 ## string when the request could not be started. The inhibition stays active
-## until the handle is closed or the application exits.
+## until the handle is closed, the application exits, or the portal service
+## exits or is replaced. That last case emits [signal request_completed] again
+## for the same handle with [enum Response] [code]OTHER[/code]: the inhibition
+## is no longer held, and the handle is dead.
 func inhibit(flags: int, reason: String, parent_window: String = "") -> String:
 	if not has_capability(Capability.INHIBIT):
 		return ""
@@ -479,6 +498,7 @@ func _connect_backend(backend: DesktopServicesBackend) -> void:
 	backend.request_completed.connect(_on_request_completed)
 	backend.notification_action_invoked.connect(_on_notification_action_invoked)
 	backend.portal_error.connect(_on_portal_error)
+	backend.portal_presence_changed.connect(_on_portal_presence_changed)
 
 
 func _disconnect_backend(backend: DesktopServicesBackend) -> void:
@@ -486,6 +506,7 @@ func _disconnect_backend(backend: DesktopServicesBackend) -> void:
 	backend.request_completed.disconnect(_on_request_completed)
 	backend.notification_action_invoked.disconnect(_on_notification_action_invoked)
 	backend.portal_error.disconnect(_on_portal_error)
+	backend.portal_presence_changed.disconnect(_on_portal_presence_changed)
 
 
 func _on_power_saver_changed(enabled: bool) -> void:
@@ -502,6 +523,16 @@ func _on_notification_action_invoked(id: String, action: String, parameters: Arr
 
 func _on_portal_error(context: String, message: String) -> void:
 	portal_error.emit(context, message)
+
+
+## A new portal instance is up. Re-read what it exports. A disappearance is
+## not probed: the name is unowned, and a call would only stall or activate a
+## service the session is already restarting. GameMode holds are left alone
+## too — gamemoded tracks the game process, not the portal process, so a
+## restart does not drop them and registering again would be rejected.
+func _on_portal_presence_changed(available: bool) -> void:
+	if available:
+		refresh_capabilities()
 
 
 func _resolve_pid(pid: int) -> int:

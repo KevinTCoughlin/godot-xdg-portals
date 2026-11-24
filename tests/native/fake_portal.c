@@ -296,8 +296,14 @@ static void handle_method_call(GDBusConnection *connection, const gchar *sender,
 			g_dbus_method_invocation_return_value(invocation,
 					g_variant_new("(i)", game_mode_status_for(pid)));
 		} else if (g_strcmp0(method_name, "RegisterGame") == 0) {
-			g_hash_table_add(registered_pids, GINT_TO_POINTER(pid));
-			g_dbus_method_invocation_return_value(invocation, g_variant_new("(i)", 0));
+			// The real portal rejects a second registration of a pid the daemon
+			// already knows, with -1. A set that answered 0 both times hid that.
+			if (g_hash_table_contains(registered_pids, GINT_TO_POINTER(pid))) {
+				g_dbus_method_invocation_return_value(invocation, g_variant_new("(i)", -1));
+			} else {
+				g_hash_table_add(registered_pids, GINT_TO_POINTER(pid));
+				g_dbus_method_invocation_return_value(invocation, g_variant_new("(i)", 0));
+			}
 		} else if (g_strcmp0(method_name, "UnregisterGame") == 0) {
 			const gboolean was_registered = g_hash_table_remove(registered_pids, GINT_TO_POINTER(pid));
 			g_dbus_method_invocation_return_value(invocation,

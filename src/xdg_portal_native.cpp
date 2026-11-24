@@ -539,9 +539,11 @@ void XdgPortalNative::on_portal_appeared(GDBusConnection * /*p_connection*/, con
 	XDGP_LOG("portal owned by %s%s\n", p_owner, replaced ? " (new instance)" : "");
 	if (replaced) {
 		// Requests are per instance: whatever the old one had not answered, it
-		// never will.
-		self->fail_pending_requests("The portal service was replaced before answering.");
+		// never will, and an inhibition it had granted died with it.
+		self->fail_pending_requests("The portal service was replaced before answering.",
+				"The inhibition ended because the portal service was replaced.");
 		self->refresh_power_saver_async();
+		self->emit_portal_presence(true);
 	}
 }
 
@@ -564,21 +566,27 @@ void XdgPortalNative::on_portal_vanished(GDBusConnection * /*p_connection*/, con
 	}
 	XDGP_LOG("portal name has no owner%s\n", was_owned ? " (it went away)" : "");
 	if (was_owned) {
-		self->fail_pending_requests("The portal service went away before answering.");
+		self->fail_pending_requests("The portal service went away before answering.",
+				"The inhibition ended because the portal service went away.");
+		self->emit_portal_presence(false);
 	}
 }
 
-void XdgPortalNative::fail_pending_requests(const String &p_reason) {
+void XdgPortalNative::fail_pending_requests(const String &p_reason, const String &p_inhibit_reason) {
 	std::vector<std::pair<String, String>> failed;
+	std::vector<String> dropped_inhibitions;
 	{
 		const std::scoped_lock guard(state_mutex);
 		for (const auto &entry : requests) {
 			if (!entry.second.answered) {
 				failed.emplace_back(entry.first, entry.second.context);
+			} else if (entry.second.is_inhibit) {
+				// The Request object died with the old instance, and the
+				// inhibition with it. Report that: a caller still holding the
+				// handle otherwise believes the session is inhibited.
+				dropped_inhibitions.push_back(entry.first);
 			}
 		}
-		// Answered Inhibit requests are dropped too: their Request objects died
-		// with the old instance, and the inhibitions with them.
 		requests.clear();
 		request_paths.clear();
 		unclaimed_responses.clear();
@@ -588,6 +596,18 @@ void XdgPortalNative::fail_pending_requests(const String &p_reason) {
 		emit_error(request.second, p_reason);
 		emit_request_completed(request.first, static_cast<int>(RESPONSE_OTHER), Dictionary());
 	}
+	for (const String &handle : dropped_inhibitions) {
+		XDGP_LOG("inhibition %s ended: %s\n", handle.utf8().get_data(), p_inhibit_reason.utf8().get_data());
+		emit_error("Inhibit.Inhibit", p_inhibit_reason);
+		emit_request_completed(handle, static_cast<int>(RESPONSE_OTHER), Dictionary());
+	}
+}
+
+void XdgPortalNative::emit_portal_presence(bool p_available) {
+	if (shutting_down.load()) {
+		return;
+	}
+	call_deferred("emit_signal", "portal_presence_changed", Variant(p_available));
 }
 
 // --- Discovery --------------------------------------------------------------
@@ -1288,6 +1308,7 @@ void XdgPortalNative::_bind_methods() {
 	ADD_SIGNAL(MethodInfo("portal_error",
 			PropertyInfo(Variant::STRING, "context"),
 			PropertyInfo(Variant::STRING, "message")));
+	ADD_SIGNAL(MethodInfo("portal_presence_changed", PropertyInfo(Variant::BOOL, "available")));
 }
 
 } // namespace xdg_portals

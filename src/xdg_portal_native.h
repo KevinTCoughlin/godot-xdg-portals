@@ -45,7 +45,10 @@ namespace xdg_portals {
 //     Response to its request by object path. They never block the caller.
 //
 // A request always completes: with the portal's Response, or locally with
-// RESPONSE_OTHER (2) when the call fails or the portal goes away first.
+// RESPONSE_OTHER (2) when the call fails or the portal goes away first. An
+// Inhibit that had already succeeded is completed again the same way if that
+// portal instance exits: the inhibition died with it, and the caller must be
+// told rather than left holding a dead handle.
 class XdgPortalNative : public godot::RefCounted {
 	// The macro body is godot-cpp's; its generated casts are not ours to restyle.
 	GDCLASS(XdgPortalNative, godot::RefCounted) // NOLINT(misc-const-correctness,modernize-use-auto)
@@ -193,9 +196,13 @@ private:
 	// Routes a Response to its request and completes it. Returns false when no
 	// request claims `p_path`.
 	bool deliver_response(const godot::String &p_path, guint32 p_response, const godot::Dictionary &p_results);
-	// Completes every request still waiting for a Response with RESPONSE_OTHER.
-	void fail_pending_requests(const godot::String &p_reason);
+	// Completes every unanswered request with RESPONSE_OTHER, and every Inhibit
+	// that had already succeeded as well: that inhibition is no longer held.
+	// `p_reason` is for requests that had not been answered; `p_inhibit_reason`
+	// is for inhibitions that had.
+	void fail_pending_requests(const godot::String &p_reason, const godot::String &p_inhibit_reason);
 	void forget_request_locked(const godot::String &p_handle);
+	void emit_portal_presence(bool p_available);
 
 	void apply_power_saver(bool p_enabled, bool p_from_signal);
 	void refresh_power_saver_async();

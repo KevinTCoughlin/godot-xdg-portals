@@ -81,10 +81,13 @@ implemented by a desktop-specific backend, so availability varies:
 
 This table reflects the interfaces the addon uses, not the full portal surface.
 Because everything is discovered at runtime, a desktop that gains or loses an
-implementation needs no change here — call `refresh_capabilities()` after a
-portal restart. The native backend notices a restart by itself: requests the old
-instance never answered complete with `Response.OTHER`, its signal
-subscriptions follow the new instance, and the power-saver state is re-read.
+implementation needs no change here. The native backend notices a restart by
+itself: requests the old instance never answered, and inhibitions it had
+already granted, complete with `Response.OTHER`; signal subscriptions follow
+the new instance; the power-saver state is re-read; and the facade refreshes
+capabilities when the new instance appears. `refresh_capabilities()` still
+forces that read. A GameMode registration survives the restart — it is held by
+`gamemoded` for the game process — and is not registered again.
 
 ## Flatpak
 

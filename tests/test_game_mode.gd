@@ -81,15 +81,69 @@ func test_request_fails_on_negative_result() -> void:
 	assert_false(portal.request_game_mode(), "-1 is the GameMode failure code")
 
 
-func test_release_forwards_and_reports_success() -> void:
+func test_release_forwards_a_held_pid() -> void:
 	mock.next_game_mode_result = 0
+	assert_true(portal.request_game_mode(99))
+	mock.clear_calls()
 	assert_true(portal.release_game_mode(99))
 	assert_eq(mock.calls_to("game_mode_unregister")[0]["args"][0], 99)
 
 
-func test_release_fails_on_negative_result() -> void:
+func test_release_without_a_hold_does_not_touch_the_bus() -> void:
+	assert_false(portal.release_game_mode(99))
+	assert_eq(mock.calls.size(), 0, "UnregisterGame is not called for a pid we never registered")
+
+
+func test_release_fails_on_negative_result_and_keeps_the_hold() -> void:
+	assert_true(portal.request_game_mode())
 	mock.next_game_mode_result = -1
+	mock.clear_calls()
 	assert_false(portal.release_game_mode())
+	assert_eq(mock.calls_to("game_mode_unregister").size(), 1)
+	# The daemon still has the registration, so leaving the tree tries again.
+	mock.next_game_mode_result = 0
+	portal._exit_tree()
+	assert_eq(mock.calls_to("game_mode_unregister").size(), 2)
+
+
+func test_request_is_idempotent_for_one_hold() -> void:
+	assert_true(portal.request_game_mode())
+	assert_true(portal.request_game_mode(), "a second request is still a success")
+	assert_eq(mock.calls_to("game_mode_register").size(), 1, "RegisterGame is not called twice")
+	assert_true(portal.release_game_mode())
+	assert_eq(mock.calls_to("game_mode_unregister").size(), 1, "one release drops the only hold")
+	portal.set_backend(DesktopServicesMockBackend.new())
+	assert_eq(mock.calls_to("game_mode_unregister").size(), 1, "and nothing is left to release")
+
+
+func test_pid_zero_and_the_real_pid_are_one_hold() -> void:
+	assert_true(portal.request_game_mode(0))
+	assert_true(portal.request_game_mode(OS.get_process_id()))
+	assert_eq(mock.calls_to("game_mode_register").size(), 1)
+
+
+func test_holds_for_different_pids_are_independent() -> void:
+	assert_true(portal.request_game_mode(1))
+	assert_true(portal.request_game_mode(2))
+	assert_eq(mock.calls_to("game_mode_register").size(), 2)
+	assert_true(portal.release_game_mode(1))
+	var releases := mock.calls_to("game_mode_unregister")
+	assert_eq(releases.size(), 1)
+	assert_eq(releases[0]["args"][0], 1)
+	portal._exit_tree()
+	releases = mock.calls_to("game_mode_unregister")
+	assert_eq(releases.size(), 2)
+	assert_eq(releases[1]["args"][0], 2, "the other pid is released on the way out")
+
+
+func test_rejected_request_is_not_a_hold() -> void:
+	# What the portal does when the pid is already registered by someone else,
+	# including the engine's own GameMode integration: RegisterGame returns -1.
+	mock.next_game_mode_result = -1
+	assert_false(portal.request_game_mode())
+	mock.clear_calls()
+	assert_false(portal.release_game_mode())
+	assert_eq(mock.calls.size(), 0, "release must not unregister a hold this facade does not own")
 
 
 func test_missing_capability_short_circuits_every_call() -> void:
