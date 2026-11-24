@@ -31,8 +31,10 @@ Before 1.0 the public API may change in a minor release.
   backends that override the old four-argument method must accept the two new
   arguments. Game code can keep calling `add_notification()` with the previous
   arguments; both new ones default to empty.
-- The non-blocking Godot 4.8 preview in CI now runs against 4.8-beta4
-  (`b070e63b1`) instead of 4.8-beta3.
+- Godot 4.7.2 is the production CI lane, with 4.4.1 still required as the
+  compatibility floor. The 4.8-beta4 trial moved to the opt-in workflow
+  "Godot 4.8 preview" (Actions, or the `ci:godot-preview` label). A failure
+  there does not fail the required checks.
 
 ### Fixed
 
