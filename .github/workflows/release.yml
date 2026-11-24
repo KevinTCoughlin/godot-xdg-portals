@@ -64,7 +64,6 @@ jobs:
           ./scripts/build.sh --target editor
 
       - name: Stage the archive
-        id: stage
         env:
           VERSION: ${{ steps.version.outputs.version }}
           ARCH: ${{ matrix.arch }}
@@ -77,36 +76,15 @@ jobs:
           actual_arch="$(uname -m)"
           if [ "$actual_arch" = aarch64 ]; then actual_arch=arm64; fi
           test "$actual_arch" = "$ARCH"
-          name="godot-xdg-portals-${VERSION}-linux-${ARCH}"
-          stage="dist/${name}"
-          mkdir -p "${stage}/addons"
-          cp -r addons/xdg_portals "${stage}/addons/"
-          cp README.md LICENSE THIRD_PARTY_NOTICES.md CHANGELOG.md "${stage}/"
-
-          # The archive ships only what a consumer installs: no build trees, no
-          # editor caches, no test or demo sources.
-          test -f "${stage}/addons/xdg_portals/bin/libxdg_portals.linux.template_release.${ARCH}.so"
-          test -f "${stage}/addons/xdg_portals/bin/libxdg_portals.linux.template_debug.${ARCH}.so"
-          test -f "${stage}/addons/xdg_portals/bin/libxdg_portals.linux.editor.${ARCH}.so"
-          test -f "${stage}/addons/xdg_portals/xdg_portals.gdextension"
-          test -f "${stage}/addons/xdg_portals/plugin.cfg"
-          test -f "${stage}/addons/xdg_portals/desktop_services.gd"
-          test -f "${stage}/README.md"
-          test -f "${stage}/LICENSE"
-          test -f "${stage}/THIRD_PARTY_NOTICES.md"
-
-          (cd dist && zip -q -r "${name}.zip" "${name}")
-          (cd dist && sha256sum "${name}.zip" > "${name}.zip.sha256")
-          unzip -l "dist/${name}.zip"
-          echo "archive=dist/${name}.zip" >> "$GITHUB_OUTPUT"
-          echo "checksum=dist/${name}.zip.sha256" >> "$GITHUB_OUTPUT"
+          ./scripts/package_addon.sh --layout linux --arch "$ARCH" \
+            --version "$VERSION" --output dist
 
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: godot-xdg-portals-linux-${{ matrix.arch }}
           path: |
-            ${{ steps.stage.outputs.archive }}
-            ${{ steps.stage.outputs.checksum }}
+            dist/*.zip
+            dist/*.zip.sha256
           if-no-files-found: error
 
       # The raw libraries feed the combined Asset Store archive below.
@@ -180,41 +158,22 @@ jobs:
 
       # One archive for every platform, rooted at addons/ as the store expects,
       # with the licence and readme inside the plugin folder (users keep that
-      # folder, not the repository root).
+      # folder, not the repository root). scripts/package_addon.sh is the same
+      # packer CI uses for the pull-request artifact.
       - name: Stage the archive
-        id: stage
         env:
           VERSION: ${{ steps.version.outputs.version }}
         run: |
           set -euo pipefail
-          name="godot-xdg-portals-${VERSION}-asset-store"
-          stage="dist/${name}"
-          mkdir -p "${stage}/addons"
-          cp -r addons/xdg_portals "${stage}/addons/"
-          cp README.md LICENSE THIRD_PARTY_NOTICES.md CHANGELOG.md "${stage}/addons/xdg_portals/"
-          find "${stage}" -mindepth 1 -name '.*' -prune -exec rm -rf {} +
-
-          # Every library the .gdextension names must be in the archive.
-          grep -o 'res://[^"]*' addons/xdg_portals/xdg_portals.gdextension | sort -u |
-            while read -r path; do
-              if [ ! -f "${stage}/${path#res://}" ]; then
-                echo "Missing ${path}" >&2
-                exit 1
-              fi
-            done
-
-          (cd "${stage}" && zip -q -r "../${name}.zip" addons)
-          (cd dist && sha256sum "${name}.zip" > "${name}.zip.sha256")
-          unzip -l "dist/${name}.zip"
-          echo "archive=dist/${name}.zip" >> "$GITHUB_OUTPUT"
-          echo "checksum=dist/${name}.zip.sha256" >> "$GITHUB_OUTPUT"
+          ./scripts/package_addon.sh --layout asset-store --version "$VERSION" \
+            --output dist
 
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: godot-xdg-portals-asset-store
           path: |
-            ${{ steps.stage.outputs.archive }}
-            ${{ steps.stage.outputs.checksum }}
+            dist/*.zip
+            dist/*.zip.sha256
           if-no-files-found: error
 
   publish:

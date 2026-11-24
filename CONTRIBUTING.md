@@ -111,6 +111,16 @@ which rows you ran and on which desktop. **Do not claim a desktop check passed i
 you did not run it** — "not tested on hardware" is a perfectly good pull request
 note, and a false one is worse than none.
 
+## Godot versions in CI
+
+4.7.2 is the production engine. 4.4.1 stays in the required lane because the
+native library is built against that godot-cpp tag and must still load there.
+Godot 4.8-beta4 is a separate workflow, **Godot 4.8 preview**. It does not run
+on a pull request unless you add the `ci:godot-preview` label (create the label
+once if the repository does not have it), and you can start it from the Actions
+tab. A failure in that workflow does not fail the required checks, and it is
+not a promise of 4.8 support.
+
 ## House rules
 
 - **Honest returns.** Unknown state is `null` or `-1`; a failed operation is

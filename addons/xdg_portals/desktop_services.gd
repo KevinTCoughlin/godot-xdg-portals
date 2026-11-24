@@ -131,6 +131,14 @@ var _interface_versions: Dictionary = {}
 ## Pids registered by [method request_game_mode] and not yet released, so
 ## leaving the tree or swapping backends can release them.
 var _game_mode_pids: Dictionary = {}
+## Set when [method _exit_tree] drops the backend. [method _ready] runs only
+## once, so a later [method _enter_tree] (plugin reload, reparent) selects again.
+var _restore_on_enter: bool = false
+
+
+func _enter_tree() -> void:
+	if _restore_on_enter and _backend == null:
+		_ensure_backend()
 
 
 func _ready() -> void:
@@ -141,9 +149,21 @@ func _ready() -> void:
 
 
 func _exit_tree() -> void:
-	if _backend != null:
-		_release_held_game_mode(_backend)
-		_backend.shutdown()
+	if _backend == null:
+		return
+	var backend := _backend
+	# Release while the backend is still the active one, so a signal delivered
+	# from that call still has somewhere to go. A handler that swaps backends
+	# mid-release keeps the replacement.
+	_release_held_game_mode(backend)
+	if _backend != backend:
+		return
+	_disconnect_backend(backend)
+	backend.shutdown()
+	_backend = null
+	_capabilities = {}
+	_interface_versions = {}
+	_restore_on_enter = true
 
 
 # --- Backend management -------------------------------------------------------
@@ -166,6 +186,7 @@ func set_backend(backend: DesktopServicesBackend) -> void:
 		_backend.shutdown()
 
 	_backend = backend
+	_restore_on_enter = false
 	_connect_backend(_backend)
 	refresh_capabilities()
 
@@ -472,6 +493,7 @@ func remove_notification(id: String) -> bool:
 ## [method Node._ready], and tests construct the node outside the tree.
 func _ensure_backend() -> void:
 	if _backend == null:
+		_restore_on_enter = false
 		set_backend(_create_default_backend())
 
 
@@ -531,11 +553,16 @@ func _connect_backend(backend: DesktopServicesBackend) -> void:
 
 
 func _disconnect_backend(backend: DesktopServicesBackend) -> void:
-	backend.power_saver_changed.disconnect(_on_power_saver_changed)
-	backend.request_completed.disconnect(_on_request_completed)
-	backend.notification_action_invoked.disconnect(_on_notification_action_invoked)
-	backend.portal_error.disconnect(_on_portal_error)
-	backend.portal_presence_changed.disconnect(_on_portal_presence_changed)
+	_disconnect_signal(backend.power_saver_changed, _on_power_saver_changed)
+	_disconnect_signal(backend.request_completed, _on_request_completed)
+	_disconnect_signal(backend.notification_action_invoked, _on_notification_action_invoked)
+	_disconnect_signal(backend.portal_error, _on_portal_error)
+	_disconnect_signal(backend.portal_presence_changed, _on_portal_presence_changed)
+
+
+func _disconnect_signal(sig: Signal, callback: Callable) -> void:
+	if sig.is_connected(callback):
+		sig.disconnect(callback)
 
 
 func _on_power_saver_changed(enabled: bool) -> void:

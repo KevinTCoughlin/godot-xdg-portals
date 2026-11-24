@@ -10,6 +10,13 @@ Before 1.0 the public API may change in a minor release.
 
 ### Added
 
+- CI uploads a reproducible `godot-xdg-portals-<version>-g<sha>-asset-store.zip`
+  as a workflow artifact. It is not a release. Release archives use the same
+  packer, so timestamps and entry order no longer depend on the runner clock.
+- The addon folder includes `icon.svg`, `LICENSE`, and a short `README.md`.
+  `.gitattributes` marks everything outside `addons/` `export-ignore`, which is
+  what an Asset Library download keeps. `bin/.gdignore` stops the editor from
+  importing the native libraries.
 - Releases carry signed SLSA build provenance for every archive (a
   `.sigstore.json` bundle; check with `gh attestation verify`).
 - CodeQL scans the workflows and the C++ library on every pull request.
@@ -31,11 +38,18 @@ Before 1.0 the public API may change in a minor release.
   backends that override the old four-argument method must accept the two new
   arguments. Game code can keep calling `add_notification()` with the previous
   arguments; both new ones default to empty.
-- The non-blocking Godot 4.8 preview in CI now runs against 4.8-beta4
-  (`b070e63b1`) instead of 4.8-beta3.
+- Godot 4.7.2 is the production CI lane, with 4.4.1 still required as the
+  compatibility floor. The 4.8-beta4 trial moved to the opt-in workflow
+  "Godot 4.8 preview" (Actions, or the `ci:godot-preview` label). A failure
+  there does not fail the required checks.
+- The security policy lists 0.2.x as the supported line. 0.1.x is unsupported.
 
 ### Fixed
 
+- **Leaving the tree drops the backend.** GameMode holds are released, the
+  backend is disconnected and shut down, and the facade forgets it. Entering
+  the tree again selects a backend instead of keeping one whose session is
+  already gone. A second leave is a no-op.
 - **`request_game_mode()` is one hold per pid.** A second call for a pid this
   facade already registered returns `true` and does not call `RegisterGame`
   again. The portal rejects that duplicate with `-1` (gamemoded already knows

@@ -43,6 +43,10 @@ no backend should have to repeat:
 
 It picks its backend on first use rather than only in `_ready()`, so an autoload
 that reaches `DesktopServices` from its own `_ready()` still gets a working facade.
+Leaving the tree releases any GameMode hold this facade registered, disconnects
+the backend, and shuts it down. The reference is dropped, so a later re-entry
+(the same node coming back after a plugin reload or a reparent) selects a
+backend again instead of calling through one whose native resources are gone.
 
 ## Layer 2 — backends
 

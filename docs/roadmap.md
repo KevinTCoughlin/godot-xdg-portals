@@ -4,7 +4,7 @@ The goal is a small, boring, dependable addon. Growth is measured against one
 question: does this belong behind a *typed, mockable* Godot API, or is it
 better served by the raw portal?
 
-## 0.2.0 — current
+## 0.2.1 — current
 
 Five portal interfaces (GameMode, Inhibit, PowerProfileMonitor, OpenURI,
 Notification) behind the `DesktopServices` autoload, a null backend everywhere
@@ -22,7 +22,7 @@ native smoke test against a fake portal in five modes, also under ASan + UBSan.
 - **Inhibit session state monitoring.** `org.freedesktop.portal.Inhibit` also
   offers `CreateMonitor` and the `StateChanged` signal for
   screensaver-active/session-running state. Useful for pausing on lock.
-- **Godot 4.5 in the CI matrix**, once it is the widely deployed version.
+- **Godot 4.8, once it is stable.** 4.7.2 stays the production pin until then. The beta is an opt-in CI workflow, not a supported target. See issue #22.
 - **C# support for the .NET flavour of the engine.** See below; the native
   layer already works there, so this is a binding and packaging question
   rather than a portal one.

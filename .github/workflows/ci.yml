@@ -76,7 +76,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        target: [template_release, editor]
+        # template_debug is required: the asset-store zip must contain every
+        # library xdg_portals.gdextension names.
+        target: [template_release, template_debug, editor]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -113,24 +115,18 @@ jobs:
           path: addons/xdg_portals/bin/*.dylib
           if-no-files-found: error
 
-  # Stable versions stay bare (4.4.1, 4.7.2) so existing check names do not
-  # change. A value containing '-' is a pre-release tag such as 4.8-beta4:
-  # scripts/install_godot.sh fetches it from godotengine/godot-builds, and the
-  # job is continue-on-error so a preview failure cannot hide a stable regression.
-  # The native library is not rebuilt per engine. godot-cpp stays pinned to
-  # godot-4.4.1-stable and is built with CMake, not SCons. That pin's binding
-  # generator asks for Python >= 3.4; ubuntu-24.04 provides 3.12, which is
-  # also above the Godot 4.8 engine-build floor of 3.10. compatibility_minimum
-  # in the .gdextension file stays 4.4 so the same library still loads in
-  # 4.4.1 and 4.7.2.
+  # 4.7.2 is the production engine. 4.4.1 stays required because it is the
+  # compatibility floor: godot-cpp is pinned to godot-4.4.1-stable and
+  # compatibility_minimum is 4.4, so a library that stops loading there is a
+  # regression. Godot 4.8 is not in this matrix. The opt-in, non-blocking
+  # trial is .github/workflows/godot-preview.yml.
   tests:
-    name: ${{ contains(matrix.godot_version, '-') && format('Godot test suite ({0}, preview)', matrix.godot_version) || format('Godot test suite ({0})', matrix.godot_version) }}
+    name: Godot test suite (${{ matrix.godot_version }})
     runs-on: ubuntu-24.04
-    continue-on-error: ${{ contains(matrix.godot_version, '-') }}
     strategy:
       fail-fast: false
       matrix:
-        godot_version: [4.4.1, 4.7.2, 4.8-beta4]
+        godot_version: [4.4.1, 4.7.2]
     env:
       GODOT_VERSION: ${{ matrix.godot_version }}
     steps:
@@ -151,13 +147,12 @@ jobs:
         run: ./scripts/run_tests.sh
 
   native-smoke:
-    name: ${{ contains(matrix.godot_version, '-') && format('Native backend vs. fake portal ({0}, {1}, preview)', matrix.arch, matrix.godot_version) || format('Native backend vs. fake portal ({0}, {1})', matrix.arch, matrix.godot_version) }}
+    name: Native backend vs. fake portal (${{ matrix.arch }}, ${{ matrix.godot_version }})
     runs-on: ${{ matrix.arch == 'arm64' && 'ubuntu-24.04-arm' || 'ubuntu-24.04' }}
-    continue-on-error: ${{ contains(matrix.godot_version, '-') }}
     strategy:
       fail-fast: false
       matrix:
-        godot_version: [4.4.1, 4.7.2, 4.8-beta4]
+        godot_version: [4.4.1, 4.7.2]
         arch: [x86_64, arm64]
     env:
       GODOT_VERSION: ${{ matrix.godot_version }}
@@ -213,9 +208,8 @@ jobs:
           sudo apt-get install --no-install-recommends -y \
             build-essential cmake pkg-config libglib2.0-dev dbus
 
-      # Preview engines are intentionally absent here. This job loops every
-      # release in one step, so a 4.8 failure could not be continue-on-error
-      # on its own. The matrix jobs above cover 4.8-beta4.
+      # 4.8 is not installed here. A preview failure must not share a step
+      # with the stable engines. The opt-in workflow covers 4.8-beta4.
       - name: Install Godot
         run: |
           set -euo pipefail
@@ -278,6 +272,12 @@ jobs:
       - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
       - name: shellcheck
         run: ./scripts/check.sh shell
+      - name: Packaging is reproducible and the Asset Library export is the addon
+        run: |
+          set -euo pipefail
+          ./scripts/package_addon.sh --self-test
+          ./scripts/package_addon.sh --check-export
+          cmp LICENSE addons/xdg_portals/LICENSE
 
   reuse:
     name: REUSE compliance
@@ -287,3 +287,37 @@ jobs:
         with:
           persist-credentials: false
       - uses: fsfe/reuse-action@676e2d560c9a403aa252096d99fcab3e1132b0f5 # v6.0.0
+
+  # Not a release. The zip is an artifact of this workflow so a pull request
+  # can be installed and inspected. Publishing stays on the release workflow,
+  # which only runs for tags.
+  package:
+    name: Asset Store zip (artifact only)
+    needs: [native, macos]
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: libxdg_portals-*
+          path: addons/xdg_portals/bin
+          merge-multiple: true
+
+      - name: Pack the asset-store zip
+        env:
+          SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          ./scripts/package_addon.sh --layout asset-store --output dist \
+            --revision "g${SHA:0:12}"
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: godot-xdg-portals-asset-store
+          path: |
+            dist/*.zip
+            dist/*.zip.sha256
+          if-no-files-found: error

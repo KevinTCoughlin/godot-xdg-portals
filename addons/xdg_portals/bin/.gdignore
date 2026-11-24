@@ -1,0 +1,5 @@
+# SPDX-FileCopyrightText: 2026 Kevin Coughlin
+#
+# SPDX-License-Identifier: MIT
+#
+# Keeps the Godot editor from importing the native libraries in this directory.

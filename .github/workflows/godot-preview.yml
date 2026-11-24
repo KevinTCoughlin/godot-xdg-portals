@@ -1,0 +1,68 @@
+# SPDX-FileCopyrightText: 2026 Kevin Coughlin
+#
+# SPDX-License-Identifier: MIT
+
+name: Godot 4.8 preview
+
+# Opt-in trial of the current Godot 4.8 beta. It is not a supported target.
+# A failure here must not fail the required CI workflow.
+#
+# Run it from the Actions tab (workflow_dispatch), or add the label
+# ci:godot-preview to a pull request. Adding the label runs it once. Later
+# commits do not re-run it; dispatch the workflow, or remove the label and
+# add it again.
+
+on:
+  workflow_dispatch:
+  pull_request:
+    types: [labeled]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: godot-preview-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  preview:
+    name: Godot 4.8-beta4 trial
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      github.event.label.name == 'ci:godot-preview'
+    runs-on: ubuntu-24.04
+    continue-on-error: true
+    env:
+      GODOT_VERSION: 4.8-beta4
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install build and D-Bus dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y \
+            build-essential cmake pkg-config libglib2.0-dev dbus
+
+      - name: Install Godot
+        run: |
+          set -euo pipefail
+          ./scripts/install_godot.sh "$GODOT_VERSION" /tmp/godot-bin x86_64
+          sudo mv /tmp/godot-bin /usr/local/bin/godot
+          godot --headless --version
+
+      - name: Run the mock-backed test suite
+        run: ./scripts/run_tests.sh
+
+      - name: Cache godot-cpp checkout
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: build-editor/_deps
+          key: godot-cpp-x86_64-editor-${{ hashFiles('CMakeLists.txt') }}
+
+      - name: Build the editor-target library
+        run: ./scripts/build.sh --target editor
+
+      - name: Run the native smoke test
+        run: ./scripts/run_native_smoke.sh
