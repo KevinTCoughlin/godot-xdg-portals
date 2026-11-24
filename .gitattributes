@@ -3,3 +3,9 @@
 *.png binary
 *.so binary
 *.zip binary
+
+# Asset Library downloads are git archive. Ship the addon, not the repository.
+# The licence and readme that users keep live inside addons/xdg_portals/.
+/**        export-ignore
+/addons    !export-ignore
+/addons/** !export-ignore

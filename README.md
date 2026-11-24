@@ -30,7 +30,7 @@ exposes no way to make an arbitrary D-Bus call.
 
 ## Requirements
 
-- Godot 4.4 or newer (4.4.1 and 4.7.2 tested in CI; 4.8-beta4 is tested as a non-blocking preview)
+- Godot 4.4 or newer. 4.7.2 is the production pin and 4.4.1 is the compatibility floor. Both are required in CI. 4.8-beta4 is an opt-in preview, not a supported target.
 - Linux with a running `xdg-desktop-portal` service, for the native backend
 - GLib/GIO 2.66+ at runtime (already present on any modern desktop and in the
   Flatpak runtimes)
@@ -57,6 +57,13 @@ descriptor), the prebuilt Linux libraries for all three targets —
 `template_release`, `template_debug` and `editor` for the selected architecture, the last so the native
 backend is active when you run your project from the Godot editor — plus
 `README.md`, `LICENSE`, `CHANGELOG.md` and `THIRD_PARTY_NOTICES.md`.
+
+### From the Godot Asset Library
+
+An Asset Library download is a git archive of `addons/` only. It does not
+contain prebuilt libraries. Use a release archive when you want those. Each
+pull request also uploads that release layout as a CI artifact named
+`godot-xdg-portals-asset-store`. The artifact is not a release.
 
 ### From source
 

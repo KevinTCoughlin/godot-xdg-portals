@@ -16,6 +16,8 @@ path = [
     "demo/icon.svg.import",
     "addons/xdg_portals/plugin.cfg",
     "addons/xdg_portals/xdg_portals.gdextension",
+    "addons/xdg_portals/LICENSE",
+    "addons/xdg_portals/README.md",
     "CITATION.cff",
     "LICENSE",
     ".gitignore",

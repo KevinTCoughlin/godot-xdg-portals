@@ -10,6 +10,13 @@ Before 1.0 the public API may change in a minor release.
 
 ### Added
 
+- CI uploads a reproducible `godot-xdg-portals-<version>-g<sha>-asset-store.zip`
+  as a workflow artifact. It is not a release. Release archives use the same
+  packer, so timestamps and entry order no longer depend on the runner clock.
+- The addon folder includes `icon.svg`, `LICENSE`, and a short `README.md`.
+  `.gitattributes` marks everything outside `addons/` `export-ignore`, which is
+  what an Asset Library download keeps. `bin/.gdignore` stops the editor from
+  importing the native libraries.
 - Releases carry signed SLSA build provenance for every archive (a
   `.sigstore.json` bundle; check with `gh attestation verify`).
 - CodeQL scans the workflows and the C++ library on every pull request.
