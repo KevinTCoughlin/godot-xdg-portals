@@ -42,6 +42,7 @@ Before 1.0 the public API may change in a minor release.
   compatibility floor. The 4.8-beta4 trial moved to the opt-in workflow
   "Godot 4.8 preview" (Actions, or the `ci:godot-preview` label). A failure
   there does not fail the required checks.
+- The security policy lists 0.2.x as the supported line. 0.1.x is unsupported.
 
 ### Fixed
 
