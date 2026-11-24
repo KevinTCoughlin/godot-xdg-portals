@@ -36,6 +36,10 @@ Before 1.0 the public API may change in a minor release.
 
 ### Fixed
 
+- **Leaving the tree drops the backend.** GameMode holds are released, the
+  backend is disconnected and shut down, and the facade forgets it. Entering
+  the tree again selects a backend instead of keeping one whose session is
+  already gone. A second leave is a no-op.
 - **`request_game_mode()` is one hold per pid.** A second call for a pid this
   facade already registered returns `true` and does not call `RegisterGame`
   again. The portal rejects that duplicate with `-1` (gamemoded already knows

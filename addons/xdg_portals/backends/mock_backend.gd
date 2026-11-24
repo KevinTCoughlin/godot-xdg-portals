@@ -156,6 +156,10 @@ func remove_notification(id: String) -> bool:
 	return next_notification_succeeds
 
 
+func shutdown() -> void:
+	_record("shutdown", [])
+
+
 # --- Test drivers -------------------------------------------------------------
 
 

@@ -87,6 +87,55 @@ func test_null_backend_reason_reaches_the_facade() -> void:
 	assert_eq(portal.get_unavailable_reason(), "headless session, no D-Bus")
 
 
+func test_exit_tree_releases_and_disconnects() -> void:
+	assert_true(portal.request_game_mode())
+	var emissions := capture(portal, "power_saver_changed")
+	portal._exit_tree()
+	mock.emit_power_saver(true)
+	assert_eq(emissions.size(), 0, "a shut-down backend must not forward signals")
+	assert_eq(
+		mock.calls_to("game_mode_unregister").size(), 1, "the hold is released on the way out"
+	)
+	assert_eq(mock.calls_to("shutdown").size(), 1, "the backend is shut down")
+	assert_null(portal._backend, "the facade drops its reference")
+
+
+func test_exit_tree_is_safe_to_call_twice() -> void:
+	assert_true(portal.request_game_mode())
+	portal._exit_tree()
+	portal._exit_tree()
+	assert_eq(mock.calls_to("game_mode_unregister").size(), 1, "the hold is released once")
+	assert_eq(mock.calls_to("shutdown").size(), 1, "shutdown runs once")
+
+
+func test_exit_tree_allows_a_new_backend() -> void:
+	assert_true(portal.request_game_mode())
+	portal._exit_tree()
+	var replacement := DesktopServicesMockBackend.new()
+	portal.set_backend(replacement)
+	assert_true(portal.is_available(), "the replacement is the live backend")
+	assert_true(portal.request_game_mode(), "calls work again after a reload")
+	assert_eq(mock.calls_to("game_mode_register").size(), 1, "the old backend is not reused")
+	assert_eq(replacement.calls_to("game_mode_register").size(), 1)
+
+
+func test_reentering_the_tree_selects_a_fresh_backend() -> void:
+	# The runner's tree is not live, so add/remove never emit these. Call them
+	# in the order a reparent uses: exit, then enter. `_ready` does not run again.
+	portal._exit_tree()
+	assert_eq(mock.calls_to("shutdown").size(), 1)
+	portal._enter_tree()
+	var restored: Object = portal._backend
+	assert_not_null(restored, "re-entry selects a backend without waiting for a call")
+	assert_ne(restored, mock, "re-entry must not keep the shut-down backend")
+	var selected: String = portal.get_backend_name()
+	assert_true(
+		selected == "null" or selected == "native" or selected == "macos",
+		"re-entry selects a real backend, got %s" % selected
+	)
+	portal._exit_tree()
+
+
 func test_default_backend_never_crashes() -> void:
 	# Exercises the real selection path: on CI (headless, no session bus) this
 	# must land on the null backend; on a desktop it may pick the native one.
