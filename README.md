@@ -30,7 +30,7 @@ exposes no way to make an arbitrary D-Bus call.
 
 ## Requirements
 
-- Godot 4.4 or newer. 4.7.2 is the production pin and 4.4.1 is the compatibility floor. Both are required in CI. 4.8-beta4 is an opt-in preview, not a supported target.
+- Godot 4.4 or newer. 4.7.2 is the production pin and 4.4.1 is the compatibility floor. Both are required in CI. 4.8-beta5 is an opt-in preview, not a supported target.
 - Linux with a running `xdg-desktop-portal` service, for the native backend
 - GLib/GIO 2.66+ at runtime (already present on any modern desktop and in the
   Flatpak runtimes)
