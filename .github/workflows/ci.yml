@@ -209,7 +209,7 @@ jobs:
             build-essential cmake pkg-config libglib2.0-dev dbus
 
       # 4.8 is not installed here. A preview failure must not share a step
-      # with the stable engines. The opt-in workflow covers 4.8-beta4.
+      # with the stable engines. The opt-in workflow covers 4.8-beta5.
       - name: Install Godot
         run: |
           set -euo pipefail

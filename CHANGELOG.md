@@ -39,9 +39,10 @@ Before 1.0 the public API may change in a minor release.
   arguments. Game code can keep calling `add_notification()` with the previous
   arguments; both new ones default to empty.
 - Godot 4.7.2 is the production CI lane, with 4.4.1 still required as the
-  compatibility floor. The 4.8-beta4 trial moved to the opt-in workflow
-  "Godot 4.8 preview" (Actions, or the `ci:godot-preview` label). A failure
-  there does not fail the required checks.
+  compatibility floor. The 4.8 trial moved to the opt-in workflow
+  "Godot 4.8 preview" (Actions, or the `ci:godot-preview` label) and now runs
+  4.8-beta5 (`a661dfdbc`) instead of 4.8-beta4. A failure there does not fail
+  the required checks.
 - The security policy lists 0.2.x as the supported line. 0.1.x is unsupported.
 
 ### Fixed

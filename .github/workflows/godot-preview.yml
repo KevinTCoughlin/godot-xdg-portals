@@ -26,14 +26,14 @@ concurrency:
 
 jobs:
   preview:
-    name: Godot 4.8-beta4 trial
+    name: Godot 4.8-beta5 trial
     if: >-
       github.event_name == 'workflow_dispatch' ||
       github.event.label.name == 'ci:godot-preview'
     runs-on: ubuntu-24.04
     continue-on-error: true
     env:
-      GODOT_VERSION: 4.8-beta4
+      GODOT_VERSION: 4.8-beta5
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
