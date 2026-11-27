@@ -13,8 +13,8 @@ The addon is three layers. Game code only ever sees the first.
         ▼                   ▼                   ▼
 ┌───────────────┐   ┌───────────────┐   ┌───────────────┐
 │ NativeBackend │   │  NullBackend  │   │  MockBackend  │
-│ (adapter)     │   │ (everywhere   │   │ (tests)       │
-│               │   │  else)        │   │               │
+│ (adapter)     │   │ (no portal)   │   │ (tests)       │
+│               │   │               │   │               │
 └───────┬───────┘   └───────────────┘   └───────────────┘
         │ 2. GDExtension boundary
         ▼
@@ -24,6 +24,10 @@ The addon is three layers. Game code only ever sees the first.
 │    thread. Talks to org.freedesktop.portal.Desktop.          │
 └──────────────────────────────────────────────────────────────┘
 ```
+
+`DesktopServicesMacBackend` is not in the picture. On macOS it takes the null
+slot and serves power-saver state through `MacPowerMonitor`; the other four
+capabilities stay unavailable. The selection rules below are what the code does.
 
 ## Layer 1 — the GDScript facade
 
@@ -50,28 +54,32 @@ backend again instead of calling through one whose native resources are gone.
 
 ## Layer 2 — backends
 
-`DesktopServicesBackend` is the contract: plain methods, four signals, and an honest
-default for every one of them (`-1`, `false`, `""`). Three implementations ship:
+`DesktopServicesBackend` is the contract: plain methods, five signals (including
+`portal_presence_changed`), and an honest default for every one of them
+(`-1`, `false`, `""`). Four implementations ship:
 
 | Backend | When | Behaviour |
 | --- | --- | --- |
 | `DesktopServicesNativeBackend` | Linux, extension loaded, session bus reachable | Forwards to `XdgPortalNative`. |
-| `DesktopServicesNullBackend` | Everything else | Every call is a no-op reporting "unavailable". |
+| `DesktopServicesMacBackend` | macOS, `MacPowerMonitor` loaded | Power-saver state only. The other four capabilities stay unavailable. |
+| `DesktopServicesNullBackend` | Everywhere else | Every call is a no-op reporting "unavailable". |
 | `DesktopServicesMockBackend` | Injected by tests | Records calls, answers from `next_*` fields, emits signals on demand. |
 
 Selection happens in `DesktopServices._create_default_backend()`:
 
-1. Not Linux, or a web build → null backend, with the platform named in the
-   reason.
-2. `XdgPortalNative` not registered in `ClassDB` (no native library for this
-   platform or build target) → null backend.
-3. Native class present but the session bus is unreachable (headless container,
+1. Web build → null backend.
+2. macOS → `DesktopServicesMacBackend` when `MacPowerMonitor` is registered,
+   otherwise null, naming the missing extension.
+3. Not Linux → null backend, with the platform named in the reason.
+4. `XdgPortalNative` not registered in `ClassDB` (no native library for this
+   build target) → null backend.
+5. Native class present but the session bus is unreachable (headless container,
    no `DBUS_SESSION_BUS_ADDRESS`) → null backend, carrying GLib's own message.
-4. Otherwise → native backend.
+6. Otherwise → native backend.
 
-Because step 2 is a `ClassDB` lookup rather than a load, the addon imports and
-runs on Windows, macOS, iOS, Android and web with no native library present at
-all.
+Because step 4 is a `ClassDB` lookup rather than a load, the addon imports and
+runs on Windows, iOS, Android and web with no native library present at all.
+macOS does ship one: the power monitor, not the portal bridge.
 
 ## Layer 3 — the native extension
 
@@ -81,10 +89,13 @@ shells out; there is no `dbus-send`, `gdbus` or `busctl` anywhere in the build.
 ### Connection
 
 The extension opens its **own private** `GDBusConnection` via
-`g_dbus_address_get_for_bus_sync()` + `g_dbus_connection_new_for_address_sync()`
-rather than the shared `g_bus_get_sync()` singleton, so it cannot disturb any
-other GLib user inside the process. `exit_on_close` is disabled: a bus that goes
-away must not take the game down.
+`g_dbus_address_get_for_bus_sync()` (the address only) and an asynchronous
+`g_dbus_connection_new_for_address()`, bounded by `CONNECT_TIMEOUT_MS`, rather
+than the shared `g_bus_get_sync()` singleton. A synchronous connect has no
+timeout: a bus that accepts the socket and then never answers the handshake
+would hang the game at startup. The private connection cannot disturb any
+other GLib user inside the process. `exit_on_close` is disabled: a bus that
+goes away must not take the game down.
 
 ### Threading
 
@@ -128,7 +139,10 @@ temporary context, so these do not depend on the worker loop at all.
 Property reads (interface versions and the power-saver state) are issued
 together, asynchronously on the worker, and waited for under a single
 `SYNC_CALL_TIMEOUT_MS`, so a slow portal costs startup one timeout rather than
-one per read. Versions are cached per portal instance.
+one per read. Versions are cached per portal instance. The power-saver value
+from that read is applied only when no change signal arrived while it was in
+flight: the signal is newer, and applying the reply afterwards would stick
+the game on the old mode until the next change.
 
 **Interactive** calls — `Inhibit` and `OpenURI` — are never synchronous. They
 follow the portal request pattern:
@@ -168,6 +182,9 @@ as above, and an Inhibit that had already succeeded is completed again with
 `Response.OTHER` — the inhibition died with that instance, so the caller's
 handle must not keep looking live. The cached interface versions are dropped,
 and the power-saver state is marked unknown and re-read from the new owner.
+A `PropertiesChanged` that invalidates `power-saver-enabled` without carrying
+the new value is re-read the same way: the specification allows either
+encoding, and ignoring the invalidation leaves the cached state stale.
 The facade refreshes capabilities when a portal instance appears, including
 one that shows up only after startup. When the name is lost it drops the
 cached capabilities without probing, so later calls fail locally instead of

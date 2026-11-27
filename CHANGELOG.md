@@ -48,6 +48,16 @@ Before 1.0 the public API may change in a minor release.
 
 ### Fixed
 
+- **A power-saver read no longer overwrites a newer change signal.** The
+  startup read was applied after it returned, so a `PropertiesChanged` that
+  arrived while it was in flight could be replaced by the older value. The
+  game then kept that mode until the next change. The read is dropped when a
+  signal won the race.
+- **Power-saver changes reported as invalidations are applied.** A
+  `PropertiesChanged` that lists `power-saver-enabled` under invalidated
+  properties, with no new value, was ignored. The cached state then stayed
+  wrong, because the next signal that did carry a value could repeat it and
+  emit nothing. The property is re-read, and `power_saver_changed` follows.
 - **A portal that exits is no longer advertised.** `has_capability()` becomes
   false as soon as the bus name is lost, without a property read, and
   `capabilities_changed` fires. The next call returns immediately instead of
