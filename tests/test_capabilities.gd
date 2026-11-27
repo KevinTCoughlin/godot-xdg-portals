@@ -76,11 +76,32 @@ func test_portal_return_refreshes_capabilities() -> void:
 	assert_eq(emissions.size(), 1, "a new portal owner refreshes capabilities")
 
 
-func test_portal_disappearance_does_not_refresh() -> void:
+func test_portal_disappearance_drops_capabilities_without_probing() -> void:
+	# A probe would observe this version. Disappearance must not look.
+	mock.interface_versions[Facade.Capability.OPEN_URI] = 1
 	var emissions := capture(portal, "capabilities_changed")
 	mock.emit_portal_presence(false)
-	assert_eq(emissions.size(), 0, "an unowned name is not probed")
+	assert_eq(emissions.size(), 1, "losing the name reports the drop")
+	assert_false(portal.has_capability(Facade.Capability.OPEN_URI))
+	assert_false(portal.has_capability(Facade.Capability.GAME_MODE))
+	assert_null(portal.is_power_saver_enabled(), "unknown while the name is unowned")
+	assert_eq(
+		portal.get_interface_version(Facade.Capability.OPEN_URI),
+		-1,
+		"the cache is dropped rather than re-read from the unowned name"
+	)
+	assert_eq(portal.open_uri("https://example.com"), "")
+	assert_eq(portal.inhibit(Facade.InhibitFlags.IDLE, "Cutscene"), "")
+	assert_false(portal.add_notification("save", "Saved"))
+	assert_false(portal.close_request("/org/freedesktop/portal/desktop/request/x/y"))
+	assert_eq(mock.calls.size(), 0, "nothing reaches the bus while the name is unowned")
+	mock.emit_portal_presence(false)
+	assert_eq(emissions.size(), 1, "a repeated disappearance is not another change")
+	mock.interface_versions[Facade.Capability.OPEN_URI] = 5
+	mock.emit_portal_presence(true)
 	assert_true(portal.has_capability(Facade.Capability.OPEN_URI))
+	assert_eq(portal.get_interface_version(Facade.Capability.OPEN_URI), 5)
+	assert_eq(emissions.size(), 2, "the new owner is probed")
 
 
 func test_portal_errors_are_forwarded() -> void:

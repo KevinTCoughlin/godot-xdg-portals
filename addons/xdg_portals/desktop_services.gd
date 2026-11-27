@@ -26,7 +26,8 @@ extends Node
 ## [/codeblock]
 
 ## Emitted after backend selection or injection, once capabilities have been
-## re-discovered.
+## re-discovered. Also emitted when the portal bus name is lost: every cached
+## capability is dropped until a new owner appears, without probing the bus.
 signal capabilities_changed
 
 ## Emitted when the desktop's power-saver state changes.
@@ -134,6 +135,11 @@ var _game_mode_pids: Dictionary = {}
 ## Set when [method _exit_tree] drops the backend. [method _ready] runs only
 ## once, so a later [method _enter_tree] (plugin reload, reparent) selects again.
 var _restore_on_enter: bool = false
+## False after the portal bus name loses its owner, until a new one appears.
+## Backends that never emit [signal DesktopServicesBackend.portal_presence_changed]
+## leave this true. While it is false, cached capabilities are empty so calls
+## fail locally instead of blocking on an unowned, activatable name.
+var _portal_name_owned: bool = true
 
 
 func _enter_tree() -> void:
@@ -185,6 +191,9 @@ func set_backend(backend: DesktopServicesBackend) -> void:
 		_disconnect_backend(_backend)
 		_backend.shutdown()
 
+	# The replacement has not reported a disappearance. Release above still
+	# saw the previous backend's flag.
+	_portal_name_owned = true
 	_backend = backend
 	_restore_on_enter = false
 	_connect_backend(_backend)
@@ -374,7 +383,10 @@ func get_supported_inhibit_flags() -> int:
 ## Closes a request handle returned by [method inhibit] or [method open_uri],
 ## cancelling it if it is still pending.
 func close_request(handle: String) -> bool:
-	if handle.is_empty() or not is_available():
+	# An unowned name makes Close block for the sync timeout and can activate
+	# a portal the session is already restarting. The inhibition, if any, was
+	# already reported ended when the name was lost.
+	if handle.is_empty() or not is_available() or not _portal_name_owned:
 		return false
 	return _backend.close_request(handle)
 
@@ -537,10 +549,14 @@ func _create_default_backend() -> DesktopServicesBackend:
 
 
 ## Releases every GameMode registration still held through [param backend].
-## Best effort: there is nobody left to report a failure to.
+## Best effort: there is nobody left to report a failure to. Skipped when the
+## portal name is unowned — [code]UnregisterGame[/code] would block and might
+## activate a service the session is restarting. [code]gamemoded[/code] drops
+## the pid when this process exits.
 func _release_held_game_mode(backend: DesktopServicesBackend) -> void:
-	for pid: int in _game_mode_pids.keys():
-		backend.game_mode_unregister(pid)
+	if _portal_name_owned:
+		for pid: int in _game_mode_pids.keys():
+			backend.game_mode_unregister(pid)
 	_game_mode_pids.clear()
 
 
@@ -583,12 +599,21 @@ func _on_portal_error(context: String, message: String) -> void:
 
 ## A new portal instance is up. Re-read what it exports. A disappearance is
 ## not probed: the name is unowned, and a call would only stall or activate a
-## service the session is already restarting. GameMode holds are left alone
-## too — gamemoded tracks the game process, not the portal process, so a
-## restart does not drop them and registering again would be rejected.
+## service the session is already restarting. Cached capabilities are dropped
+## instead, so the next call fails locally. GameMode holds are left alone —
+## gamemoded tracks the game process, not the portal process, so a restart
+## does not drop them and registering again would be rejected.
 func _on_portal_presence_changed(available: bool) -> void:
 	if available:
+		_portal_name_owned = true
 		refresh_capabilities()
+		return
+	if not _portal_name_owned:
+		return
+	_portal_name_owned = false
+	_capabilities = {}
+	_interface_versions = {}
+	capabilities_changed.emit()
 
 
 func _resolve_pid(pid: int) -> int:

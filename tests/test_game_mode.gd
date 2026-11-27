@@ -179,6 +179,32 @@ func test_failed_registration_is_not_released() -> void:
 	assert_eq(mock.calls_to("game_mode_unregister").size(), 0, "nothing was held")
 
 
+func test_portal_gap_keeps_the_hold_and_skips_the_bus() -> void:
+	assert_true(portal.request_game_mode())
+	mock.clear_calls()
+	mock.emit_portal_presence(false)
+	assert_false(portal.request_game_mode(), "the capability is gone for the gap")
+	assert_false(portal.release_game_mode(), "release is not attempted while the name is unowned")
+	assert_eq(mock.calls.size(), 0)
+	mock.emit_portal_presence(true)
+	assert_true(portal.request_game_mode(), "the hold is still the one gamemoded has")
+	assert_eq(mock.calls_to("game_mode_register").size(), 0, "RegisterGame is not repeated")
+	assert_true(portal.release_game_mode())
+	assert_eq(mock.calls_to("game_mode_unregister").size(), 1)
+
+
+func test_exit_while_the_portal_is_down_does_not_unregister() -> void:
+	assert_true(portal.request_game_mode())
+	mock.clear_calls()
+	mock.emit_portal_presence(false)
+	portal._exit_tree()
+	assert_eq(
+		mock.calls_to("game_mode_unregister").size(),
+		0,
+		"UnregisterGame would block on the unowned name"
+	)
+
+
 func test_leaving_the_tree_releases_held_game_mode() -> void:
 	assert_true(portal.request_game_mode(4242))
 	# What the engine calls when the autoload leaves the tree at exit. The

@@ -133,7 +133,7 @@ shows exactly what the portal answered.
 | 12 | *Withdraw notification* while it is still on screen. | It disappears. |
 | 13 | Repeat 1–12 inside a Flatpak built with only `--socket=session-bus` and `--talk-name=org.freedesktop.portal.Desktop`. | Identical behaviour; no additional permission needed. |
 | 14 | Quit the demo while an inhibition is active. | The inhibition is released with the process; no stuck idle-inhibitor remains. |
-| 15 | `systemctl --user restart xdg-desktop-portal` while the demo runs, with an inhibition already granted and GameMode requested. | No crash. Capabilities refresh on their own. A request pending across the restart completes with `other`, and the granted inhibition completes again with `other` (the screen can blank; the handle is dead). Power-saver changes are still reported. GameMode stays registered: it is held by `gamemoded`, and querying still says `registered`. |
+| 15 | `systemctl --user restart xdg-desktop-portal` while the demo runs, with an inhibition already granted and GameMode requested. | No crash. While the name is unowned, capabilities drop on their own (no multi-second stall). They refresh when the new instance appears. A request pending across the restart completes with `other`, and the granted inhibition completes again with `other` (the screen can blank; the handle is dead). Power-saver changes are still reported. GameMode stays registered: it is held by `gamemoded`, and querying still says `registered`. |
 
 If a check fails, `XDG_PORTALS_DEBUG=1` traces subscriptions, async replies and
 incoming responses on stderr.

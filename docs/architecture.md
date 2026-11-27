@@ -169,7 +169,9 @@ as above, and an Inhibit that had already succeeded is completed again with
 handle must not keep looking live. The cached interface versions are dropped,
 and the power-saver state is marked unknown and re-read from the new owner.
 The facade refreshes capabilities when a portal instance appears, including
-one that shows up only after startup. GameMode registrations are not redone:
+one that shows up only after startup. When the name is lost it drops the
+cached capabilities without probing, so later calls fail locally instead of
+blocking on the unowned name. GameMode registrations are not redone:
 `gamemoded` tracks the game process, not the portal process, and a second
 `RegisterGame` for a pid it already knows is rejected.
 
