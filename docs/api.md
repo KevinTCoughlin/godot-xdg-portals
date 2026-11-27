@@ -182,7 +182,8 @@ signal notification_action_invoked(id: String, action: String, parameters: Array
 
 Reusing an `id` replaces the notification posted under it. An empty `id` is
 rejected locally. Priorities map to the portal's string names: `"low"`,
-`"normal"`, `"high"`, `"urgent"`.
+`"normal"`, `"high"`, `"urgent"`. Any other value is rejected locally too —
+it used to be clamped, so a bad call posted `"urgent"` or `"low"`.
 
 `default_action` is the action name reported when the user activates the
 notification itself. An empty string means there is no default action.

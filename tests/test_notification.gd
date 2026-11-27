@@ -116,6 +116,16 @@ func test_add_notification_rejects_too_many_buttons() -> void:
 	assert_eq(mock.calls.size(), 0)
 
 
+func test_add_notification_rejects_an_unknown_priority() -> void:
+	var errors := capture(portal, "portal_error")
+	assert_false(portal.add_notification("save", "Saved", "", 99))
+	assert_false(portal.add_notification("save", "Saved", "", -1))
+	assert_eq(mock.calls.size(), 0, "an unknown priority never reaches the bus")
+	assert_eq(errors.size(), 2)
+	assert_eq(errors[0][0], "Notification.AddNotification")
+	assert_eq(errors[1][0], "Notification.AddNotification")
+
+
 func test_every_priority_maps_to_its_portal_name() -> void:
 	var expected := {
 		Facade.NotificationPriority.LOW: "low",

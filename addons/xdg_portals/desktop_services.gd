@@ -466,14 +466,20 @@ func add_notification(
 		push_error("DesktopServices.add_notification() requires a non-empty id.")
 		portal_error.emit("Notification.AddNotification", "A notification id must not be empty.")
 		return false
+	var priority_name := _priority_name(priority)
+	if priority_name.is_empty():
+		var message := (
+			"Notification priority %d is not a NotificationPriority value." % int(priority)
+		)
+		push_error("DesktopServices.add_notification(): %s" % message)
+		portal_error.emit("Notification.AddNotification", message)
+		return false
 	var rejection := _notification_rejection(default_action, buttons)
 	if not rejection.is_empty():
 		push_error("DesktopServices.add_notification(): %s" % rejection)
 		portal_error.emit("Notification.AddNotification", rejection)
 		return false
-	return _backend.add_notification(
-		id, title, body, _priority_name(priority), default_action, buttons
-	)
+	return _backend.add_notification(id, title, body, priority_name, default_action, buttons)
 
 
 ## Withdraws the notification previously posted under [param id].
@@ -647,8 +653,13 @@ func _notification_text_problem(text: String) -> String:
 	return ""
 
 
+## The portal name for [param priority], or empty when it is not one of
+## [enum NotificationPriority]. Out-of-range values used to be clamped, so a
+## bad call posted [code]urgent[/code] instead of failing.
 func _priority_name(priority: NotificationPriority) -> String:
-	var index: int = clampi(int(priority), 0, _PRIORITY_NAMES.size() - 1)
+	var index := int(priority)
+	if index < 0 or index >= _PRIORITY_NAMES.size():
+		return ""
 	return _PRIORITY_NAMES[index]
 
 
