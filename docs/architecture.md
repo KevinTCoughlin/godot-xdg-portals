@@ -128,7 +128,10 @@ temporary context, so these do not depend on the worker loop at all.
 Property reads (interface versions and the power-saver state) are issued
 together, asynchronously on the worker, and waited for under a single
 `SYNC_CALL_TIMEOUT_MS`, so a slow portal costs startup one timeout rather than
-one per read. Versions are cached per portal instance.
+one per read. Versions are cached per portal instance. The power-saver value
+from that read is applied only when no change signal arrived while it was in
+flight: the signal is newer, and applying the reply afterwards would stick
+the game on the old mode until the next change.
 
 **Interactive** calls — `Inhibit` and `OpenURI` — are never synchronous. They
 follow the portal request pattern:
@@ -168,6 +171,9 @@ as above, and an Inhibit that had already succeeded is completed again with
 `Response.OTHER` — the inhibition died with that instance, so the caller's
 handle must not keep looking live. The cached interface versions are dropped,
 and the power-saver state is marked unknown and re-read from the new owner.
+A `PropertiesChanged` that invalidates `power-saver-enabled` without carrying
+the new value is re-read the same way: the specification allows either
+encoding, and ignoring the invalidation leaves the cached state stale.
 The facade refreshes capabilities when a portal instance appears, including
 one that shows up only after startup. GameMode registrations are not redone:
 `gamemoded` tracks the game process, not the portal process, and a second

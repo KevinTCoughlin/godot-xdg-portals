@@ -13,6 +13,7 @@
 #include <godot_cpp/variant/string.hpp>
 
 #include <atomic>
+#include <cstdint>
 #include <deque>
 #include <functional>
 #include <map>
@@ -145,6 +146,9 @@ private:
 	// restarts can tell a change from a first answer.
 	bool power_saver_known_once = false;
 	bool power_saver_enabled = false;
+	// Bumped on every change signal. A read applied after it returns can see
+	// that a signal arrived while it was in flight and must not overwrite it.
+	std::uint64_t power_saver_epoch = 0;
 	// Whether the portal name has been reported owned or unowned at least once,
 	// and by whom. An empty owner means nobody owns it right now.
 	bool portal_owner_seen = false;
@@ -209,7 +213,12 @@ private:
 	void forget_request_locked(const godot::String &p_handle);
 	void emit_portal_presence(bool p_available);
 
-	void apply_power_saver(bool p_enabled, bool p_from_signal);
+	// `p_epoch_at_start` is `power_saver_epoch` from before a read was issued,
+	// when that read's result is applied later and not in bus order. The
+	// default applies unconditionally, which is correct for a signal and for
+	// a reply handled on the worker before the next message.
+	void apply_power_saver(bool p_enabled, bool p_from_signal,
+			std::uint64_t p_epoch_at_start = UINT64_MAX);
 	void refresh_power_saver_async();
 
 	void emit_error(const godot::String &p_context, const godot::String &p_message);
