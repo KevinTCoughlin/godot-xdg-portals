@@ -58,8 +58,9 @@ It exercises the parts of the native layer that need no human:
 - `Notification.ActionInvoked` delivery and payload conversion, including byte
   arrays and integer-keyed dictionaries;
 - tearing an instance down while its call is still in flight;
-- `PropertiesChanged` on `power-saver-enabled`, and that the cached state
-  follows it.
+- `PropertiesChanged` on `power-saver-enabled`, both when the signal carries
+  the new value and when it only invalidates the property (the client
+  re-reads), and that the cached state follows either.
 
 This tier is the regression test for the threading bug described in
 [`architecture.md`](architecture.md#threading): before it existed, every

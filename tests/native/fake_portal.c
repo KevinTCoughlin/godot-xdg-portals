@@ -114,6 +114,10 @@ static const gchar *INTROSPECTION_XML =
 
 static GDBusNodeInfo *introspection = NULL;
 static gboolean power_saver_enabled = TRUE;
+// How many times power-saver has been toggled. Odd toggles carry the new value
+// in PropertiesChanged; even toggles only invalidate the property, which is
+// what a portal is allowed to do instead.
+static guint power_toggles = 0;
 static const GDBusInterfaceVTable VTABLE;
 
 // Options; see the header comment.
@@ -380,16 +384,29 @@ static gboolean emit_action_invoked(gpointer data) {
 static gboolean toggle_power_saver(gpointer data) {
 	(void)data;
 	power_saver_enabled = !power_saver_enabled;
+	power_toggles++;
 
-	GVariantBuilder changed;
-	g_variant_builder_init(&changed, G_VARIANT_TYPE("a{sv}"));
-	g_variant_builder_add(&changed, "{sv}", "power-saver-enabled",
-			g_variant_new_boolean(power_saver_enabled));
+	GVariant *changed_body = NULL;
+	GVariant *invalidated_body = NULL;
+	if (power_toggles % 2 == 0) {
+		GVariantBuilder changed;
+		g_variant_builder_init(&changed, G_VARIANT_TYPE("a{sv}"));
+		changed_body = g_variant_builder_end(&changed);
+		const gchar *names[] = { "power-saver-enabled", NULL };
+		invalidated_body = g_variant_new_strv(names, -1);
+	} else {
+		GVariantBuilder changed;
+		g_variant_builder_init(&changed, G_VARIANT_TYPE("a{sv}"));
+		g_variant_builder_add(&changed, "{sv}", "power-saver-enabled",
+				g_variant_new_boolean(power_saver_enabled));
+		changed_body = g_variant_builder_end(&changed);
+		invalidated_body = g_variant_new_strv(NULL, 0);
+	}
 
 	g_dbus_connection_emit_signal(bus, NULL, PORTAL_PATH,
 			"org.freedesktop.DBus.Properties", "PropertiesChanged",
 			g_variant_new("(s@a{sv}@as)", "org.freedesktop.portal.PowerProfileMonitor",
-					g_variant_builder_end(&changed), g_variant_new_strv(NULL, 0)),
+					changed_body, invalidated_body),
 			NULL);
 	return G_SOURCE_CONTINUE;
 }

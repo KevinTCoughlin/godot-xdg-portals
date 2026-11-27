@@ -1112,11 +1112,30 @@ void XdgPortalNative::on_properties_changed(GDBusConnection * /*p_connection*/, 
 	GVariant *invalidated = nullptr;
 	g_variant_get(p_parameters, "(&s@a{sv}@as)", &interface_name, &changed, &invalidated);
 
-	if (interface_name != nullptr && g_strcmp0(interface_name, IFACE_POWER_PROFILE_MONITOR) == 0 && changed != nullptr) {
-		GVariant *value = g_variant_lookup_value(changed, PROP_POWER_SAVER_ENABLED, G_VARIANT_TYPE_BOOLEAN);
-		if (value != nullptr) {
-			self->apply_power_saver(g_variant_get_boolean(value), true);
-			g_variant_unref(value);
+	if (interface_name != nullptr && g_strcmp0(interface_name, IFACE_POWER_PROFILE_MONITOR) == 0) {
+		bool saw_value = false;
+		if (changed != nullptr) {
+			GVariant *value = g_variant_lookup_value(changed, PROP_POWER_SAVER_ENABLED, G_VARIANT_TYPE_BOOLEAN);
+			if (value != nullptr) {
+				self->apply_power_saver(g_variant_get_boolean(value), true);
+				g_variant_unref(value);
+				saw_value = true;
+			}
+		}
+		// The spec allows a change to be reported as an invalidation, with no
+		// new value. Ignoring that leaves the cache stale: the next signal that
+		// does carry a value can repeat the value we already have, so nothing
+		// is emitted and the game keeps the old power mode.
+		if (!saw_value && invalidated != nullptr) {
+			const gsize count = g_variant_n_children(invalidated);
+			for (gsize i = 0; i < count; i++) {
+				const gchar *name = nullptr;
+				g_variant_get_child(invalidated, i, "&s", &name);
+				if (g_strcmp0(name, PROP_POWER_SAVER_ENABLED) == 0) {
+					self->refresh_power_saver_async();
+					break;
+				}
+			}
 		}
 	}
 
