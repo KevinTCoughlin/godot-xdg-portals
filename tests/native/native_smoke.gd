@@ -71,6 +71,8 @@ func _initialize() -> void:
 			await _check_slow_start()
 		"restart":
 			await _check_restart()
+		"gamemode-restart":
+			await _check_game_mode_daemon_restart()
 		"stale-read":
 			_check_stale_power_read()
 		_:
@@ -439,6 +441,27 @@ func _check_restart() -> void:
 	_expect(inhibit_result[0] == handle, "its completion uses the caller's handle")
 	_expect(inhibit_result[1] == _portal.Response.SUCCESS, "and the new instance answers 0")
 	_expect(_portal.close_request(handle), "Close reaches the restarted portal")
+
+
+## gamemoded restarts after this process registered, and forgets the pid. The
+## facade must notice through the daemon's bus name and register again.
+func _check_game_mode_daemon_restart() -> void:
+	_expect(_portal.request_game_mode(), "RegisterGame should succeed")
+	var went_away: bool = await _backend.game_mode_daemon_presence_changed
+	_expect(not went_away, "the daemon's name is reported lost first")
+	var came_back: bool = await _backend.game_mode_daemon_presence_changed
+	_expect(came_back, "then a new daemon instance is reported")
+	# The facade connected before this await, so it has already registered.
+	_expect(
+		_portal.query_game_mode() == _portal.GameModeStatus.REGISTERED,
+		"the hold is registered with the new daemon, got %s" % _portal.query_game_mode()
+	)
+	_expect(_portal.request_game_mode(), "the facade still reports the hold")
+	_expect(_portal.release_game_mode(), "UnregisterGame reaches the new daemon")
+	_expect(
+		_portal.query_game_mode() == _portal.GameModeStatus.NOT_REGISTERED,
+		"after releasing, nothing is registered, got %s" % _portal.query_game_mode()
+	)
 
 
 ## The session bus address points at a socket that never answers. Creating the

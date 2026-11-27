@@ -30,6 +30,11 @@
 //   --stale-power-get        Emit power-saver enabled, then answer every Get
 //                            with false and do not toggle. The reply is older
 //                            than the signal.
+//   --gamemode-daemon-restart
+//                            Also own com.feralinteractive.GameMode, as
+//                            gamemoded does. After the first RegisterGame,
+//                            give the name up, forget every registration and
+//                            take the name again, like a daemon restart.
 //   --wedged-bus PATH        Do not act as a portal at all: listen on the unix
 //                            socket PATH and never answer, like a session bus
 //                            that accepts connections and then hangs.
@@ -128,6 +133,9 @@ static guint response_delay_ms = 50;
 static gboolean gamemode_other_active = FALSE;
 static guint first_get_delay_ms = 0;
 static gboolean exit_after_open_uri = FALSE;
+static gboolean gamemode_daemon_restart = FALSE;
+static gboolean gamemode_daemon_restarted = FALSE;
+static guint gamemode_daemon_owner_id = 0;
 // The first power-saver Get emits the real value, then replies with the
 // opposite. Later Gets keep lying, so a client that applies the reply cannot
 // be rescued by a follow-up read. No periodic toggle: the signal's value is
@@ -457,6 +465,40 @@ static gboolean quit_loop(gpointer data) {
 	return G_SOURCE_REMOVE;
 }
 
+static void on_gamemode_daemon_acquired(GDBusConnection *connection, const gchar *name,
+		gpointer user_data) {
+	(void)connection;
+	(void)user_data;
+	printf("fake-portal: gamemoded owns %s\n", name);
+	fflush(stdout);
+}
+
+static void own_gamemode_daemon_name(void) {
+	gamemode_daemon_owner_id = g_bus_own_name_on_connection(bus,
+			"com.feralinteractive.GameMode", G_BUS_NAME_OWNER_FLAGS_NONE,
+			on_gamemode_daemon_acquired, NULL, NULL, NULL);
+}
+
+static gboolean start_gamemode_daemon(gpointer data) {
+	(void)data;
+	own_gamemode_daemon_name();
+	return G_SOURCE_REMOVE;
+}
+
+// gamemoded exits: its name is released and every registration goes with it.
+// A new instance takes the name a little later, knowing nobody.
+static gboolean restart_gamemode_daemon(gpointer data) {
+	(void)data;
+	printf("fake-portal: gamemoded restarting, dropping %u registration(s)\n",
+			g_hash_table_size(registered_pids));
+	fflush(stdout);
+	g_bus_unown_name(gamemode_daemon_owner_id);
+	gamemode_daemon_owner_id = 0;
+	g_hash_table_remove_all(registered_pids);
+	g_timeout_add(100, start_gamemode_daemon, NULL);
+	return G_SOURCE_REMOVE;
+}
+
 static gint32 game_mode_status_for(gint32 pid) {
 	if (g_hash_table_contains(registered_pids, GINT_TO_POINTER(pid))) {
 		return 2;
@@ -491,6 +533,10 @@ static void handle_method_call(GDBusConnection *connection, const gchar *sender,
 			} else {
 				g_hash_table_add(registered_pids, GINT_TO_POINTER(pid));
 				g_dbus_method_invocation_return_value(invocation, g_variant_new("(i)", 0));
+				if (gamemode_daemon_restart && !gamemode_daemon_restarted) {
+					gamemode_daemon_restarted = TRUE;
+					g_timeout_add(100, restart_gamemode_daemon, NULL);
+				}
 			}
 		} else if (g_strcmp0(method_name, "UnregisterGame") == 0) {
 			const gboolean was_registered = g_hash_table_remove(registered_pids, GINT_TO_POINTER(pid));
@@ -687,6 +733,9 @@ static void on_bus_acquired(GDBusConnection *connection, const gchar *name, gpoi
 	if (!stale_power_get) {
 		g_timeout_add(300, toggle_power_saver, NULL);
 	}
+	if (gamemode_daemon_restart) {
+		own_gamemode_daemon_name();
+	}
 }
 
 static void on_name_acquired(GDBusConnection *connection, const gchar *name, gpointer user_data) {
@@ -755,6 +804,8 @@ int main(int argc, char **argv) {
 			gamemode_other_active = TRUE;
 		} else if (g_strcmp0(option, "--exit-after-open-uri") == 0) {
 			exit_after_open_uri = TRUE;
+		} else if (g_strcmp0(option, "--gamemode-daemon-restart") == 0) {
+			gamemode_daemon_restart = TRUE;
 		} else if (g_strcmp0(option, "--stale-power-get") == 0) {
 			stale_power_get = TRUE;
 		} else if (g_strcmp0(option, "--wedged-bus") == 0 && value != NULL) {
@@ -781,6 +832,9 @@ int main(int argc, char **argv) {
 
 	g_main_loop_run(loop);
 
+	if (gamemode_daemon_owner_id != 0) {
+		g_bus_unown_name(gamemode_daemon_owner_id);
+	}
 	g_bus_unown_name(owner_id);
 	g_main_loop_unref(loop);
 	g_dbus_node_info_unref(introspection);

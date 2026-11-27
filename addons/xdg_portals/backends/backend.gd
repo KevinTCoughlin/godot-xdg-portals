@@ -31,6 +31,16 @@ signal portal_error(context: String, message: String)
 ## capabilities when a new owner appears.
 signal portal_presence_changed(available: bool)
 
+## Emitted when the GameMode daemon ([code]gamemoded[/code]) goes away or a new
+## instance appears after startup. [param available] is true when a process
+## owns its bus name. The daemon holds every registration, so a new instance
+## holds none of the ones the old one had.
+##
+## The native backend emits this when it can see the daemon's name, which a
+## Flatpak sandbox cannot. Other backends never do, which is the same as a
+## daemon that stays up for the whole session.
+signal game_mode_daemon_presence_changed(available: bool)
+
 
 ## Short identifier used for diagnostics, e.g. [code]"native"[/code].
 func get_backend_name() -> String:

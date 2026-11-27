@@ -54,8 +54,8 @@ backend again instead of calling through one whose native resources are gone.
 
 ## Layer 2 — backends
 
-`DesktopServicesBackend` is the contract: plain methods, five signals (including
-`portal_presence_changed`), and an honest default for every one of them
+`DesktopServicesBackend` is the contract: plain methods, six signals (including
+`portal_presence_changed` and `game_mode_daemon_presence_changed`), and an honest default for every one of them
 (`-1`, `false`, `""`). Four implementations ship:
 
 | Backend | When | Behaviour |
@@ -191,6 +191,15 @@ cached capabilities without probing, so later calls fail locally instead of
 blocking on the unowned name. GameMode registrations are not redone:
 `gamemoded` tracks the game process, not the portal process, and a second
 `RegisterGame` for a pid it already knows is rejected.
+
+`gamemoded` restarting is a different matter: the registrations die with it.
+The worker also watches `com.feralinteractive.GameMode`, without auto-start,
+and emits `game_mode_daemon_presence_changed` when the name is lost or a new
+owner takes it after startup. The facade then marks its holds as lost and
+registers them again, through the portal, once a daemon owns the name and the
+portal name is owned. A hold released in between is dropped locally and not
+registered again. A Flatpak sandbox cannot see the daemon's name, so the
+watch never fires there.
 
 ### Type conversion
 

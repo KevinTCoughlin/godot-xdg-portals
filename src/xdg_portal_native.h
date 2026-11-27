@@ -33,8 +33,8 @@ namespace xdg_portals {
 // dispatched on that worker thread and are handed to Godot with
 // `call_deferred()`, so script code only ever sees them on the main thread.
 //
-// The worker makes every signal subscription, and the portal name watch, as it
-// starts: before any call can be issued, and whether or not the portal is
+// The worker makes every signal subscription, and the portal and GameMode
+// daemon name watches, as it starts: before any call can be issued, and whether or not the portal is
 // running yet. Subscriptions name the portal's well-known name as sender, so
 // they follow whichever process owns it.
 //
@@ -136,6 +136,11 @@ private:
 	guint power_saver_subscription = 0;
 	guint action_invoked_subscription = 0;
 	guint portal_name_watch = 0;
+	guint game_mode_daemon_watch = 0;
+	// Whether the GameMode daemon's name has been reported at least once, and
+	// its owner then. Empty means unowned.
+	bool game_mode_daemon_seen = false;
+	godot::String game_mode_daemon_owner;
 
 	godot::String unavailable_reason;
 
@@ -212,6 +217,7 @@ private:
 	void fail_pending_requests(const godot::String &p_reason, const godot::String &p_inhibit_reason);
 	void forget_request_locked(const godot::String &p_handle);
 	void emit_portal_presence(bool p_available);
+	void emit_game_mode_daemon_presence(bool p_available);
 
 	// `p_epoch_at_start` is `power_saver_epoch` from before a read was issued,
 	// when that read's result is applied later and not in bus order. The
@@ -236,6 +242,10 @@ private:
 	static void on_portal_appeared(GDBusConnection *p_connection, const gchar *p_name,
 			const gchar *p_owner, gpointer p_user_data);
 	static void on_portal_vanished(GDBusConnection *p_connection, const gchar *p_name, gpointer p_user_data);
+	static void on_game_mode_daemon_appeared(GDBusConnection *p_connection, const gchar *p_name,
+			const gchar *p_owner, gpointer p_user_data);
+	static void on_game_mode_daemon_vanished(GDBusConnection *p_connection, const gchar *p_name,
+			gpointer p_user_data);
 	static void on_request_call_finished(GObject *p_source, GAsyncResult *p_result, gpointer p_user_data);
 	static void on_power_saver_read(GObject *p_source, GAsyncResult *p_result, gpointer p_user_data);
 };

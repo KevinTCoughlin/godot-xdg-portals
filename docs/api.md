@@ -91,6 +91,15 @@ exits. While the name is unowned, `request_game_mode()` and
 GameMode itself is held by `gamemoded` for the game process, so a portal
 restart does not drop it and the facade does not register again.
 
+A `gamemoded` restart does drop it. When the backend can see the daemon's bus
+name (the native backend outside a Flatpak), the facade registers every hold
+again once the new instance appears, waiting for the portal if its name is
+unowned too. Until then, `release_game_mode()` for that pid returns `true`
+without a bus call, and the hold is not taken again; `request_game_mode()`
+registers it immediately. A new daemon that rejects the registration is
+reported on `portal_error` with context `GameMode.RegisterGame`, and the hold
+is dropped.
+
 These three calls are synchronous with a 2-second timeout — they are
 non-interactive and show no UI.
 

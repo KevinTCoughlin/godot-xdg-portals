@@ -12,6 +12,11 @@ namespace xdg_portals {
 inline constexpr const char *PORTAL_BUS_NAME = "org.freedesktop.portal.Desktop";
 inline constexpr const char *PORTAL_OBJECT_PATH = "/org/freedesktop/portal/desktop";
 
+// The GameMode daemon's own name. Only watched, never called: the portal
+// forwards registrations to it. A sandbox that cannot see the name never
+// reports it, which is the same as a daemon that never restarts.
+inline constexpr const char *GAME_MODE_DAEMON_BUS_NAME = "com.feralinteractive.GameMode";
+
 inline constexpr const char *IFACE_PROPERTIES = "org.freedesktop.DBus.Properties";
 inline constexpr const char *IFACE_REQUEST = "org.freedesktop.portal.Request";
 inline constexpr const char *IFACE_GAME_MODE = "org.freedesktop.portal.GameMode";
