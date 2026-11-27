@@ -71,6 +71,8 @@ func _initialize() -> void:
 			await _check_slow_start()
 		"restart":
 			await _check_restart()
+		"stale-read":
+			_check_stale_power_read()
 		_:
 			_fail("unknown smoke mode '%s'" % _mode)
 	_finish()
@@ -313,22 +315,45 @@ func _action_for(id: String) -> Array:
 	return []
 
 
-## The fake service toggles power-saver every 300 ms.
+## The fake service toggles power-saver every 300 ms, alternating a
+## PropertiesChanged that carries the new value with one that only invalidates
+## the property. Both have to move the cached state: a client that ignores
+## invalidation keeps the first value, and later carried updates repeat it.
 func _check_power_saver_transition() -> void:
 	var initial: Variant = _portal.is_power_saver_enabled()
 	_expect(initial != null, "the power-saver property should be readable")
-	# A transition may occur between the read and the await. Observe a few
-	# signals so the test checks for an actual state change, not timer phase.
-	# A single-argument signal yields that argument directly, not an array.
-	var changed: bool = false
-	for _attempt in range(4):
-		changed = await _portal.power_saver_changed
-		if changed != initial:
+	var distinct: Array = []
+	var latest: Variant = initial
+	for _attempt in range(8):
+		# A single-argument signal yields that argument directly, not an array.
+		latest = await _portal.power_saver_changed
+		_expect(
+			_portal.is_power_saver_enabled() == latest,
+			(
+				"the cached state should follow the notification, got %s"
+				% [_portal.is_power_saver_enabled()]
+			)
+		)
+		if distinct.is_empty() or distinct[distinct.size() - 1] != latest:
+			distinct.append(latest)
+		if distinct.size() >= 2:
 			break
-	_expect(changed != initial, "the change notification should carry the new state")
 	_expect(
-		_portal.is_power_saver_enabled() == changed,
-		"the cached state should follow the notification"
+		distinct.size() >= 2,
+		"a carried value and an invalidation both update power-saver state, saw %s" % [distinct]
+	)
+
+
+## The fixture emits power-saver enabled, then answers every Get with false.
+## Construction has already finished, so the cache must still say enabled:
+## the Get is older than the signal that arrived while it was in flight.
+func _check_stale_power_read() -> void:
+	_expect(
+		_portal.is_power_saver_enabled() == true,
+		(
+			"a stale startup read must not overwrite the change signal, got %s"
+			% [_portal.is_power_saver_enabled()]
+		)
 	)
 
 
