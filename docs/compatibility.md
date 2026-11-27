@@ -85,7 +85,8 @@ implementation needs no change here. The native backend notices a restart by
 itself: requests the old instance never answered, and inhibitions it had
 already granted, complete with `Response.OTHER`; signal subscriptions follow
 the new instance; the power-saver state is re-read; and the facade refreshes
-capabilities when the new instance appears. `refresh_capabilities()` still
+capabilities when the new instance appears, and drops them while the name is
+unowned so calls do not block on it. `refresh_capabilities()` still
 forces that read. A GameMode registration survives the restart — it is held by
 `gamemoded` for the game process — and is not registered again.
 

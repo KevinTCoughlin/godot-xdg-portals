@@ -405,9 +405,21 @@ func _check_restart() -> void:
 		int(lost.get(inhibit_handle, -1)) == _portal.Response.OTHER,
 		"a held inhibition is reported as ended, got %s" % [lost]
 	)
-	if not _saw_capability_refresh:
+	# Disappearance drops the cache and emits capabilities_changed before the
+	# new instance is probed. A version of 5 with no signal yet is the
+	# pre-crash cache, not the refresh.
+	var restored := false
+	for _attempt in range(4):
+		var version: int = _portal.get_interface_version(_portal.Capability.OPEN_URI)
+		if (
+			_saw_capability_refresh
+			and version == 5
+			and _portal.has_capability(_portal.Capability.OPEN_URI)
+		):
+			restored = true
+			break
 		await _portal.capabilities_changed
-	_expect(_saw_capability_refresh, "capabilities are refreshed when the new portal appears")
+	_expect(restored, "capabilities are refreshed when the new portal appears")
 	_expect(
 		_portal.get_interface_version(_portal.Capability.OPEN_URI) == 5,
 		"the refreshed OpenURI version comes from the new instance"

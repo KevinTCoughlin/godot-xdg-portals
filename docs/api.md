@@ -39,8 +39,12 @@ then, including when the portal was absent at startup and appears later.
 and for tests. The native backend reads every interface version in parallel
 and caches them for as long as the same portal instance runs, so a refresh
 after a restart reads them again and one without a restart costs no bus
-traffic. A disappearance is not probed: the name is unowned, and calling it
-would only stall or race the session's own restart.
+traffic. A disappearance is not probed. The name is unowned, and a call then
+would block for the synchronous timeout and D-Bus-activate a service the
+session is already restarting. The facade drops every cached capability
+instead, emits `capabilities_changed`, and `has_capability()` is false until a
+new owner appears. `close_request()` fails the same way: the inhibition was
+already reported ended when the name was lost.
 
 ## GameMode
 
@@ -80,6 +84,10 @@ when this facade holds nothing for that pid, so it cannot drop a registration
 another client made. Both return `true` only when the hold is actually taken
 or dropped; a registration still held when the `DesktopServices` node leaves
 the tree, or when `set_backend()` replaces the backend, is released then.
+That release is skipped when the portal name is already unowned, because
+`UnregisterGame` would block on it; `gamemoded` drops the pid when the process
+exits. While the name is unowned, `request_game_mode()` and
+`release_game_mode()` return `false` without a bus call. The hold is kept:
 GameMode itself is held by `gamemoded` for the game process, so a portal
 restart does not drop it and the facade does not register again.
 
@@ -214,7 +222,7 @@ attaches one of its own.
 
 | Signal | Arguments | Emitted when |
 | --- | --- | --- |
-| `capabilities_changed` | — | A backend is selected or injected, `refresh_capabilities()` runs, or a new portal instance takes the bus name. |
+| `capabilities_changed` | — | A backend is selected or injected, `refresh_capabilities()` runs, the portal name is lost (capabilities drop), or a new instance takes the name. |
 | `power_saver_changed` | `enabled: bool` | The desktop's power-saver state changes. |
 | `request_completed` | `handle: String, response: int, results: Dictionary` | An interactive request finishes. |
 | `notification_action_invoked` | `id: String, action: String, parameters: Array` | The user activates a notification action. |

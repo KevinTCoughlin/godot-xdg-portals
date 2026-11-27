@@ -22,8 +22,9 @@ Before 1.0 the public API may change in a minor release.
 - CodeQL scans the workflows and the C++ library on every pull request.
 - `DesktopServicesBackend.portal_presence_changed(available)`. The native
   backend emits it when the portal bus name appears or disappears after
-  startup. The facade refreshes capabilities when a new owner appears.
-  Backends that never emit it behave as before.
+  startup. The facade drops cached capabilities when the name is lost and
+  refreshes them when a new owner appears. Backends that never emit it
+  behave as before.
 - `DesktopServicesNotificationButton`, and optional `default_action` and
   `buttons` arguments on `add_notification()`. A button is a label plus an
   action token. There is no action target, because that would be an arbitrary
@@ -57,6 +58,13 @@ Before 1.0 the public API may change in a minor release.
   properties, with no new value, was ignored. The cached state then stayed
   wrong, because the next signal that did carry a value could repeat it and
   emit nothing. The property is re-read, and `power_saver_changed` follows.
+- **A portal that exits is no longer advertised.** `has_capability()` becomes
+  false as soon as the bus name is lost, without a property read, and
+  `capabilities_changed` fires. The next call returns immediately instead of
+  blocking for the synchronous timeout and D-Bus-activating a portal the
+  session is already restarting. `close_request()` and the GameMode release
+  on shutdown are included. A GameMode hold is kept across the gap and is not
+  registered a second time when the portal returns.
 - **An unknown notification priority is rejected.** A value outside
   `NotificationPriority` used to be clamped, so `99` was posted as `urgent`
   and a negative value as `low`. The call now returns `false`, emits
