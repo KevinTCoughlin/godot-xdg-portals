@@ -27,6 +27,9 @@
 //                            starting up.
 //   --exit-after-open-uri    Answer OpenURI, then exit without ever sending its
 //                            Response, like a portal that crashed mid-request.
+//   --stale-power-get        Emit power-saver enabled, then answer every Get
+//                            with false and do not toggle. The reply is older
+//                            than the signal.
 //   --wedged-bus PATH        Do not act as a portal at all: listen on the unix
 //                            socket PATH and never answer, like a session bus
 //                            that accepts connections and then hangs.
@@ -125,6 +128,12 @@ static guint response_delay_ms = 50;
 static gboolean gamemode_other_active = FALSE;
 static guint first_get_delay_ms = 0;
 static gboolean exit_after_open_uri = FALSE;
+// The first power-saver Get emits the real value, then replies with the
+// opposite. Later Gets keep lying, so a client that applies the reply cannot
+// be rescued by a follow-up read. No periodic toggle: the signal's value is
+// what the cache must keep.
+static gboolean stale_power_get = FALSE;
+static gboolean lied_about_power = FALSE;
 
 // Pids registered through RegisterGame, so QueryStatus answers from state
 // rather than a constant: 0 inactive, 1 active for others, 2 active and
@@ -594,7 +603,6 @@ static void handle_method_call(GDBusConnection *connection, const gchar *sender,
 static GVariant *handle_get_property(GDBusConnection *connection, const gchar *sender,
 		const gchar *object_path, const gchar *interface_name, const gchar *property_name,
 		GError **error, gpointer user_data) {
-	(void)connection;
 	(void)sender;
 	(void)object_path;
 	(void)user_data;
@@ -609,6 +617,24 @@ static GVariant *handle_get_property(GDBusConnection *connection, const gchar *s
 	}
 
 	if (g_strcmp0(property_name, "power-saver-enabled") == 0) {
+		if (stale_power_get) {
+			if (!lied_about_power) {
+				lied_about_power = TRUE;
+				GVariantBuilder changed;
+				g_variant_builder_init(&changed, G_VARIANT_TYPE("a{sv}"));
+				g_variant_builder_add(&changed, "{sv}", "power-saver-enabled",
+						g_variant_new_boolean(TRUE));
+				g_dbus_connection_emit_signal(connection, NULL, PORTAL_PATH,
+						"org.freedesktop.DBus.Properties", "PropertiesChanged",
+						g_variant_new("(s@a{sv}@as)",
+								"org.freedesktop.portal.PowerProfileMonitor",
+								g_variant_builder_end(&changed), g_variant_new_strv(NULL, 0)),
+						NULL);
+			}
+			// The opposite of the signal, on every read. Applying it clobbers
+			// the value the signal just reported.
+			return g_variant_new_boolean(FALSE);
+		}
 		return g_variant_new_boolean(power_saver_enabled);
 	}
 	if (g_strcmp0(property_name, "version") == 0) {
@@ -658,7 +684,9 @@ static void on_bus_acquired(GDBusConnection *connection, const gchar *name, gpoi
 		}
 	}
 
-	g_timeout_add(300, toggle_power_saver, NULL);
+	if (!stale_power_get) {
+		g_timeout_add(300, toggle_power_saver, NULL);
+	}
 }
 
 static void on_name_acquired(GDBusConnection *connection, const gchar *name, gpointer user_data) {
@@ -727,6 +755,8 @@ int main(int argc, char **argv) {
 			gamemode_other_active = TRUE;
 		} else if (g_strcmp0(option, "--exit-after-open-uri") == 0) {
 			exit_after_open_uri = TRUE;
+		} else if (g_strcmp0(option, "--stale-power-get") == 0) {
+			stale_power_get = TRUE;
 		} else if (g_strcmp0(option, "--wedged-bus") == 0 && value != NULL) {
 			return run_wedged_bus(value);
 		} else {

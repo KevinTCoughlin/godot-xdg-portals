@@ -39,6 +39,7 @@ runs only that one):
 | `immediate` | sends `Response` the instant the method returns, and has GameMode active for another process. | Everything below; no `Response` is lost to a late subscription. |
 | `slow-start` | stalls 2.5 s on its first property read, past the client's timeout. | `power_saver_changed` still arrives, and capabilities are discovered. |
 | `restart` | exits after answering `OpenURI` without sending its `Response`, and is started again. | The pending request completes with `OTHER`, and an inhibition granted before the exit completes again with `OTHER`. Capabilities are refreshed against the new instance; signals and requests work there. |
+| `stale-read` | emits power-saver enabled, then answers every `Get` with disabled. | The cached state stays enabled. The reply must not overwrite the signal. |
 | `wedged-bus` | is joined by a socket that accepts connections and never answers, which the extension is pointed at. | Connecting gives up within `CONNECT_TIMEOUT_MS` and says why. |
 
 It exercises the parts of the native layer that need no human:

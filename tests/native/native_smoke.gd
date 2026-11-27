@@ -71,6 +71,8 @@ func _initialize() -> void:
 			await _check_slow_start()
 		"restart":
 			await _check_restart()
+		"stale-read":
+			_check_stale_power_read()
 		_:
 			_fail("unknown smoke mode '%s'" % _mode)
 	_finish()
@@ -339,6 +341,19 @@ func _check_power_saver_transition() -> void:
 	_expect(
 		distinct.size() >= 2,
 		"a carried value and an invalidation both update power-saver state, saw %s" % [distinct]
+	)
+
+
+## The fixture emits power-saver enabled, then answers every Get with false.
+## Construction has already finished, so the cache must still say enabled:
+## the Get is older than the signal that arrived while it was in flight.
+func _check_stale_power_read() -> void:
+	_expect(
+		_portal.is_power_saver_enabled() == true,
+		(
+			"a stale startup read must not overwrite the change signal, got %s"
+			% [_portal.is_power_saver_enabled()]
+		)
 	)
 
 

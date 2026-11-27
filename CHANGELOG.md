@@ -47,6 +47,11 @@ Before 1.0 the public API may change in a minor release.
 
 ### Fixed
 
+- **A power-saver read no longer overwrites a newer change signal.** The
+  startup read was applied after it returned, so a `PropertiesChanged` that
+  arrived while it was in flight could be replaced by the older value. The
+  game then kept that mode until the next change. The read is dropped when a
+  signal won the race.
 - **Power-saver changes reported as invalidations are applied.** A
   `PropertiesChanged` that lists `power-saver-enabled` under invalidated
   properties, with no new value, was ignored. The cached state then stayed

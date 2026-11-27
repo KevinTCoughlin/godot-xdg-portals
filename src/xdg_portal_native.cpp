@@ -259,9 +259,11 @@ XdgPortalNative::XdgPortalNative() {
 		properties.emplace_back(interface, "version");
 	}
 	guint64 generation = 0;
+	std::uint64_t power_epoch = 0;
 	{
 		const std::scoped_lock guard(state_mutex);
 		generation = portal_generation;
+		power_epoch = power_saver_epoch;
 	}
 	std::vector<bool> definitive;
 	std::vector<GVariant *> values = read_properties(properties, definitive);
@@ -269,10 +271,15 @@ XdgPortalNative::XdgPortalNative() {
 	bool power_known = false;
 	if (values[0] != nullptr) {
 		if (g_variant_is_of_type(values[0], G_VARIANT_TYPE_BOOLEAN)) {
-			apply_power_saver(g_variant_get_boolean(values[0]), false);
-			power_known = true;
+			// Applied back on this thread, after the worker may already have
+			// handled a newer PropertiesChanged. The epoch skips the read then.
+			apply_power_saver(g_variant_get_boolean(values[0]), false, power_epoch);
 		}
 		g_variant_unref(values[0]);
+	}
+	{
+		const std::scoped_lock guard(state_mutex);
+		power_known = power_saver_known;
 	}
 	{
 		const std::scoped_lock guard(state_mutex);
@@ -1049,10 +1056,20 @@ bool XdgPortalNative::close_request(const String &p_handle) {
 
 // --- PowerProfileMonitor ----------------------------------------------------
 
-void XdgPortalNative::apply_power_saver(bool p_enabled, bool p_from_signal) {
+void XdgPortalNative::apply_power_saver(bool p_enabled, bool p_from_signal, std::uint64_t p_epoch_at_start) {
 	bool emit = false;
 	{
 		const std::scoped_lock guard(state_mutex);
+		// A startup read is applied after read_properties() returns, so a
+		// PropertiesChanged handled on the worker in that window is newer than
+		// the value in hand. Overwriting it stuck the game on the stale mode
+		// until the next change, which may not come for the rest of the session.
+		if (!p_from_signal && p_epoch_at_start != UINT64_MAX && p_epoch_at_start != power_saver_epoch) {
+			return;
+		}
+		if (p_from_signal) {
+			power_saver_epoch++;
+		}
 		// A change notification is reported even when the previous state was
 		// unknown. A re-read is reported only when it differs from the last
 		// value we had, so a restarted portal does not produce a phantom change.

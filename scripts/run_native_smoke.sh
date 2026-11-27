@@ -27,6 +27,9 @@
 #                started again. The pending request and a previously granted
 #                inhibition must complete as OTHER, capabilities must refresh,
 #                and the client must follow the new instance.
+#   stale-read   The portal emits power-saver enabled, then answers the Get
+#                with disabled, and keeps answering that way. The cache must
+#                stay enabled: the reply is older than the signal.
 #   wedged-bus   The extension is pointed at a socket that accepts connections
 #                and never answers; connecting must give up in bounded time.
 #                Godot itself keeps the real session bus: it talks D-Bus too,
@@ -47,7 +50,7 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 WORK_DIR="$(mktemp -d)"
 trap 'rm -rf "$WORK_DIR"' EXIT
 
-ALL_MODES=(default immediate slow-start restart wedged-bus)
+ALL_MODES=(default immediate slow-start restart stale-read wedged-bus)
 MODES=()
 SANITIZE=0
 while [[ $# -gt 0 ]]; do
@@ -61,7 +64,7 @@ while [[ $# -gt 0 ]]; do
 			MODES+=("$2")
 			shift 2
 			;;
-		-h|--help) sed -n '6,40p' "${BASH_SOURCE[0]}" | cut -c3-; exit 0 ;;
+		-h|--help) sed -n '6,46p' "${BASH_SOURCE[0]}" | cut -c3-; exit 0 ;;
 		*) echo "Unknown option: $1" >&2; exit 2 ;;
 	esac
 done
@@ -189,6 +192,7 @@ run_session_pass() {
 		immediate) options=(--response-delay 0 --gamemode-other-active) ;;
 		slow-start) options=(--first-get-delay 2500) ;;
 		restart) options=(--exit-after-open-uri) ;;
+		stale-read) options=(--stale-power-get) ;;
 	esac
 
 	if [[ "$mode" == "restart" ]]; then

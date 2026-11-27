@@ -128,7 +128,10 @@ temporary context, so these do not depend on the worker loop at all.
 Property reads (interface versions and the power-saver state) are issued
 together, asynchronously on the worker, and waited for under a single
 `SYNC_CALL_TIMEOUT_MS`, so a slow portal costs startup one timeout rather than
-one per read. Versions are cached per portal instance.
+one per read. Versions are cached per portal instance. The power-saver value
+from that read is applied only when no change signal arrived while it was in
+flight: the signal is newer, and applying the reply afterwards would stick
+the game on the old mode until the next change.
 
 **Interactive** calls — `Inhibit` and `OpenURI` — are never synchronous. They
 follow the portal request pattern:
