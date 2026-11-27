@@ -132,6 +132,10 @@ var _interface_versions: Dictionary = {}
 ## Pids registered by [method request_game_mode] and not yet released, so
 ## leaving the tree or swapping backends can release them.
 var _game_mode_pids: Dictionary = {}
+## Pids held by [method request_game_mode] whose registration [code]gamemoded[/code]
+## dropped when it went away. They are registered again when a daemon is back
+## and the portal can be reached, unless they are released first.
+var _game_mode_lost_pids: Dictionary = {}
 ## Set when [method _exit_tree] drops the backend. [method _ready] runs only
 ## once, so a later [method _enter_tree] (plugin reload, reparent) selects again.
 var _restore_on_enter: bool = false
@@ -305,13 +309,19 @@ func query_game_mode(pid: int = 0) -> GameModeStatus:
 ## and records no hold. [method query_game_mode] tells those apart.
 ##
 ## A registration still held when this node leaves the tree, or when
-## [method set_backend] replaces the backend, is released then.
+## [method set_backend] replaces the backend, is released then. If
+## [code]gamemoded[/code] restarts while a hold is taken, the facade registers
+## the pid again with the new instance, when the backend can see the daemon
+## (see [signal DesktopServicesBackend.game_mode_daemon_presence_changed]).
 func request_game_mode(pid: int = 0) -> bool:
 	if not has_capability(Capability.GAME_MODE):
 		return false
 	var resolved: int = _resolve_pid(pid)
 	if _game_mode_pids.has(resolved):
 		return true
+	# A hold gamemoded dropped is asked for now, not when the daemon returns.
+	# The outcome of this call decides it either way.
+	_game_mode_lost_pids.erase(resolved)
 	if _backend.game_mode_register(resolved) != 0:
 		return false
 	_game_mode_pids[resolved] = true
@@ -323,10 +333,17 @@ func request_game_mode(pid: int = 0) -> bool:
 ## Returns [code]false[/code] without calling [code]UnregisterGame[/code] when
 ## this facade holds nothing for [param pid]. That includes a request the
 ## portal rejected, so a release cannot drop a registration another client made.
+##
+## A hold that [code]gamemoded[/code] already dropped by exiting is released
+## locally, without a bus call, so it is not registered again when the daemon
+## returns.
 func release_game_mode(pid: int = 0) -> bool:
+	var resolved: int = _resolve_pid(pid)
+	if _game_mode_lost_pids.has(resolved):
+		_game_mode_lost_pids.erase(resolved)
+		return true
 	if not has_capability(Capability.GAME_MODE):
 		return false
-	var resolved: int = _resolve_pid(pid)
 	if not _game_mode_pids.has(resolved):
 		return false
 	if _backend.game_mode_unregister(resolved) != 0:
@@ -564,6 +581,27 @@ func _release_held_game_mode(backend: DesktopServicesBackend) -> void:
 		for pid: int in _game_mode_pids.keys():
 			backend.game_mode_unregister(pid)
 	_game_mode_pids.clear()
+	# gamemoded already dropped these; there is nothing to unregister.
+	_game_mode_lost_pids.clear()
+
+
+## Registers again every hold [code]gamemoded[/code] dropped. Left for later
+## while the portal cannot be reached. A pid the new daemon rejects is
+## dropped and reported: the hold is not there, and repeating the call would
+## not change that.
+func _retake_lost_game_mode() -> void:
+	if _game_mode_lost_pids.is_empty() or not has_capability(Capability.GAME_MODE):
+		return
+	var lost: Array = _game_mode_lost_pids.keys()
+	_game_mode_lost_pids.clear()
+	for pid: int in lost:
+		if _backend.game_mode_register(pid) == 0:
+			_game_mode_pids[pid] = true
+		else:
+			portal_error.emit(
+				"GameMode.RegisterGame",
+				"Could not register pid %d with GameMode again after gamemoded restarted." % pid
+			)
 
 
 func _connect_backend(backend: DesktopServicesBackend) -> void:
@@ -572,6 +610,7 @@ func _connect_backend(backend: DesktopServicesBackend) -> void:
 	backend.notification_action_invoked.connect(_on_notification_action_invoked)
 	backend.portal_error.connect(_on_portal_error)
 	backend.portal_presence_changed.connect(_on_portal_presence_changed)
+	backend.game_mode_daemon_presence_changed.connect(_on_game_mode_daemon_presence_changed)
 
 
 func _disconnect_backend(backend: DesktopServicesBackend) -> void:
@@ -580,6 +619,9 @@ func _disconnect_backend(backend: DesktopServicesBackend) -> void:
 	_disconnect_signal(backend.notification_action_invoked, _on_notification_action_invoked)
 	_disconnect_signal(backend.portal_error, _on_portal_error)
 	_disconnect_signal(backend.portal_presence_changed, _on_portal_presence_changed)
+	_disconnect_signal(
+		backend.game_mode_daemon_presence_changed, _on_game_mode_daemon_presence_changed
+	)
 
 
 func _disconnect_signal(sig: Signal, callback: Callable) -> void:
@@ -608,11 +650,13 @@ func _on_portal_error(context: String, message: String) -> void:
 ## service the session is already restarting. Cached capabilities are dropped
 ## instead, so the next call fails locally. GameMode holds are left alone —
 ## gamemoded tracks the game process, not the portal process, so a restart
-## does not drop them and registering again would be rejected.
+## does not drop them and registering again would be rejected. Holds that
+## gamemoded itself dropped while the portal was away are taken again here.
 func _on_portal_presence_changed(available: bool) -> void:
 	if available:
 		_portal_name_owned = true
 		refresh_capabilities()
+		_retake_lost_game_mode()
 		return
 	if not _portal_name_owned:
 		return
@@ -620,6 +664,18 @@ func _on_portal_presence_changed(available: bool) -> void:
 	_capabilities = {}
 	_interface_versions = {}
 	capabilities_changed.emit()
+
+
+## gamemoded, not the portal, holds GameMode registrations. When it goes away
+## every hold is gone with it. Those are kept as lost, not released: the game
+## still wants them, and the next instance gets them back.
+func _on_game_mode_daemon_presence_changed(available: bool) -> void:
+	if available:
+		_retake_lost_game_mode()
+		return
+	for pid: int in _game_mode_pids.keys():
+		_game_mode_lost_pids[pid] = true
+	_game_mode_pids.clear()
 
 
 func _resolve_pid(pid: int) -> int:

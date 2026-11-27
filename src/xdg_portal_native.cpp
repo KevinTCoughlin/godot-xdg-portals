@@ -429,8 +429,16 @@ void XdgPortalNative::subscribe_all() {
 	portal_name_watch = g_bus_watch_name_on_connection(connection, PORTAL_BUS_NAME,
 			G_BUS_NAME_WATCHER_FLAGS_NONE, &XdgPortalNative::on_portal_appeared,
 			&XdgPortalNative::on_portal_vanished, this, nullptr);
-	XDGP_LOG("subscribed: response %u, power %u, action %u, watch %u\n", response_subscription,
-			power_saver_subscription, action_invoked_subscription, portal_name_watch);
+	// gamemoded holds GameMode registrations, not the portal. When it restarts
+	// they are gone, and the facade has to register again. No auto-start flag:
+	// watching must not activate the daemon.
+	game_mode_daemon_watch = g_bus_watch_name_on_connection(connection,
+			GAME_MODE_DAEMON_BUS_NAME, G_BUS_NAME_WATCHER_FLAGS_NONE,
+			&XdgPortalNative::on_game_mode_daemon_appeared,
+			&XdgPortalNative::on_game_mode_daemon_vanished, this, nullptr);
+	XDGP_LOG("subscribed: response %u, power %u, action %u, watch %u, gamemode watch %u\n",
+			response_subscription, power_saver_subscription, action_invoked_subscription,
+			portal_name_watch, game_mode_daemon_watch);
 }
 
 void XdgPortalNative::unsubscribe_all() {
@@ -440,9 +448,11 @@ void XdgPortalNative::unsubscribe_all() {
 			*id = 0;
 		}
 	}
-	if (portal_name_watch != 0) {
-		g_bus_unwatch_name(portal_name_watch);
-		portal_name_watch = 0;
+	for (guint *id : { &portal_name_watch, &game_mode_daemon_watch }) {
+		if (*id != 0) {
+			g_bus_unwatch_name(*id);
+			*id = 0;
+		}
 	}
 }
 
@@ -579,6 +589,46 @@ void XdgPortalNative::on_portal_vanished(GDBusConnection * /*p_connection*/, con
 	}
 }
 
+// Both run on the worker, the only thread that touches the daemon state.
+void XdgPortalNative::on_game_mode_daemon_appeared(GDBusConnection * /*p_connection*/,
+		const gchar * /*p_name*/, const gchar *p_owner, gpointer p_user_data) {
+	auto *self = static_cast<XdgPortalNative *>(p_user_data);
+	if (self->shutting_down.load()) {
+		return;
+	}
+	const String owner = String::utf8(p_owner);
+	// The first report is the daemon as found at startup; nothing has been
+	// registered with an earlier one.
+	const bool was_seen = self->game_mode_daemon_seen;
+	const String previous = self->game_mode_daemon_owner;
+	self->game_mode_daemon_seen = true;
+	self->game_mode_daemon_owner = owner;
+	if (!was_seen || previous == owner) {
+		return;
+	}
+	XDGP_LOG("gamemode daemon owned by %s (new instance)\n", p_owner);
+	if (!previous.is_empty()) {
+		// Replaced without an unowned gap: what the old owner held is gone.
+		self->emit_game_mode_daemon_presence(false);
+	}
+	self->emit_game_mode_daemon_presence(true);
+}
+
+void XdgPortalNative::on_game_mode_daemon_vanished(GDBusConnection * /*p_connection*/,
+		const gchar * /*p_name*/, gpointer p_user_data) {
+	auto *self = static_cast<XdgPortalNative *>(p_user_data);
+	if (self->shutting_down.load()) {
+		return;
+	}
+	const bool was_owned = !self->game_mode_daemon_owner.is_empty();
+	self->game_mode_daemon_seen = true;
+	self->game_mode_daemon_owner = String();
+	if (was_owned) {
+		XDGP_LOG("gamemode daemon name has no owner (it went away)\n");
+		self->emit_game_mode_daemon_presence(false);
+	}
+}
+
 void XdgPortalNative::fail_pending_requests(const String &p_reason, const String &p_inhibit_reason) {
 	std::vector<std::pair<String, String>> failed;
 	std::vector<String> dropped_inhibitions;
@@ -615,6 +665,13 @@ void XdgPortalNative::emit_portal_presence(bool p_available) {
 		return;
 	}
 	call_deferred("emit_signal", "portal_presence_changed", Variant(p_available));
+}
+
+void XdgPortalNative::emit_game_mode_daemon_presence(bool p_available) {
+	if (shutting_down.load()) {
+		return;
+	}
+	call_deferred("emit_signal", "game_mode_daemon_presence_changed", Variant(p_available));
 }
 
 // --- Discovery --------------------------------------------------------------
@@ -1371,6 +1428,7 @@ void XdgPortalNative::_bind_methods() {
 			PropertyInfo(Variant::STRING, "context"),
 			PropertyInfo(Variant::STRING, "message")));
 	ADD_SIGNAL(MethodInfo("portal_presence_changed", PropertyInfo(Variant::BOOL, "available")));
+	ADD_SIGNAL(MethodInfo("game_mode_daemon_presence_changed", PropertyInfo(Variant::BOOL, "available")));
 }
 
 } // namespace xdg_portals

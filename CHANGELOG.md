@@ -25,6 +25,10 @@ Before 1.0 the public API may change in a minor release.
   startup. The facade drops cached capabilities when the name is lost and
   refreshes them when a new owner appears. Backends that never emit it
   behave as before.
+- `DesktopServicesBackend.game_mode_daemon_presence_changed(available)`. The
+  native backend emits it when `com.feralinteractive.GameMode` is lost or
+  gains a new owner after startup. The mock backend can emit it with
+  `emit_game_mode_daemon_presence()`.
 - `DesktopServicesNotificationButton`, and optional `default_action` and
   `buttons` arguments on `add_notification()`. A button is a label plus an
   action token. There is no action target, because that would be an arbitrary
@@ -48,6 +52,14 @@ Before 1.0 the public API may change in a minor release.
 
 ### Fixed
 
+- **A GameMode hold is taken again when gamemoded restarts.** The daemon
+  drops every registration when it exits, but the facade kept treating the
+  pid as held, so `request_game_mode()` returned `true` without registering
+  and the game ran without GameMode until it exited. The native backend now
+  watches the daemon's bus name, and the facade registers each hold with the
+  new instance (once the portal is reachable). A hold released while the
+  daemon was away is released locally and not registered again. Inside a
+  Flatpak the daemon's name is not visible, so nothing changes there.
 - **A power-saver read no longer overwrites a newer change signal.** The
   startup read was applied after it returned, so a `PropertiesChanged` that
   arrived while it was in flight could be replaced by the older value. The

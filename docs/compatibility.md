@@ -88,7 +88,11 @@ the new instance; the power-saver state is re-read; and the facade refreshes
 capabilities when the new instance appears, and drops them while the name is
 unowned so calls do not block on it. `refresh_capabilities()` still
 forces that read. A GameMode registration survives the restart — it is held by
-`gamemoded` for the game process — and is not registered again.
+`gamemoded` for the game process — and is not registered again. A restart of
+`gamemoded` itself does drop it. The native backend watches the daemon's bus
+name and the facade registers the hold again with the new instance. Inside a
+Flatpak that name is not visible, so a `gamemoded` restart is recovered only
+when the game exits; no extra permission is asked for to change that.
 
 ## Flatpak
 

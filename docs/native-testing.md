@@ -39,6 +39,7 @@ runs only that one):
 | `immediate` | sends `Response` the instant the method returns, and has GameMode active for another process. | Everything below; no `Response` is lost to a late subscription. |
 | `slow-start` | stalls 2.5 s on its first property read, past the client's timeout. | `power_saver_changed` still arrives, and capabilities are discovered. |
 | `restart` | exits after answering `OpenURI` without sending its `Response`, and is started again. | The pending request completes with `OTHER`, and an inhibition granted before the exit completes again with `OTHER`. Capabilities are refreshed against the new instance; signals and requests work there. |
+| `gamemode-restart` | also owns `com.feralinteractive.GameMode`, and after the first `RegisterGame` gives the name up, forgets every pid, and takes it again. | The facade sees the daemon go and come back, and registers its hold with the new instance: `query_game_mode()` says `registered`, and the release reaches it. |
 | `stale-read` | emits power-saver enabled, then answers every `Get` with disabled. | The cached state stays enabled. The reply must not overwrite the signal. |
 | `wedged-bus` | is joined by a socket that accepts connections and never answers, which the extension is pointed at. | Connecting gives up within `CONNECT_TIMEOUT_MS` and says why. |
 
@@ -136,6 +137,7 @@ shows exactly what the portal answered.
 | 13 | Repeat 1–12 inside a Flatpak built with only `--socket=session-bus` and `--talk-name=org.freedesktop.portal.Desktop`. | Identical behaviour; no additional permission needed. |
 | 14 | Quit the demo while an inhibition is active. | The inhibition is released with the process; no stuck idle-inhibitor remains. |
 | 15 | `systemctl --user restart xdg-desktop-portal` while the demo runs, with an inhibition already granted and GameMode requested. | No crash. While the name is unowned, capabilities drop on their own (no multi-second stall). They refresh when the new instance appears. A request pending across the restart completes with `other`, and the granted inhibition completes again with `other` (the screen can blank; the handle is dead). Power-saver changes are still reported. GameMode stays registered: it is held by `gamemoded`, and querying still says `registered`. |
+| 16 | *Request GameMode*, then `systemctl --user restart gamemoded` while the demo runs (outside a Flatpak). | Querying GameMode says `registered` again shortly after the restart: the facade registers its hold with the new daemon. After *Release GameMode* first, the restart registers nothing. Inside a Flatpak the daemon's name is not visible and the hold is not re-taken. |
 
 If a check fails, `XDG_PORTALS_DEBUG=1` traces subscriptions, async replies and
 incoming responses on stderr.

@@ -189,6 +189,11 @@ func emit_portal_presence(available: bool) -> void:
 	portal_presence_changed.emit(available)
 
 
+## Emits [signal DesktopServicesBackend.game_mode_daemon_presence_changed].
+func emit_game_mode_daemon_presence(available: bool) -> void:
+	game_mode_daemon_presence_changed.emit(available)
+
+
 ## Returns the recorded calls for [param method], in order.
 func calls_to(method: String) -> Array[Dictionary]:
 	var matches: Array[Dictionary] = []

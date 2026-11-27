@@ -27,6 +27,10 @@
 #                started again. The pending request and a previously granted
 #                inhibition must complete as OTHER, capabilities must refresh,
 #                and the client must follow the new instance.
+#   gamemode-restart
+#                The fixture also owns gamemoded's bus name, and restarts it
+#                after the first registration, forgetting every pid. The
+#                facade must register its hold again with the new instance.
 #   stale-read   The portal emits power-saver enabled, then answers the Get
 #                with disabled, and keeps answering that way. The cache must
 #                stay enabled: the reply is older than the signal.
@@ -50,7 +54,7 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 WORK_DIR="$(mktemp -d)"
 trap 'rm -rf "$WORK_DIR"' EXIT
 
-ALL_MODES=(default immediate slow-start restart stale-read wedged-bus)
+ALL_MODES=(default immediate slow-start restart gamemode-restart stale-read wedged-bus)
 MODES=()
 SANITIZE=0
 while [[ $# -gt 0 ]]; do
@@ -192,6 +196,7 @@ run_session_pass() {
 		immediate) options=(--response-delay 0 --gamemode-other-active) ;;
 		slow-start) options=(--first-get-delay 2500) ;;
 		restart) options=(--exit-after-open-uri) ;;
+		gamemode-restart) options=(--gamemode-daemon-restart) ;;
 		stale-read) options=(--stale-power-get) ;;
 	esac
 

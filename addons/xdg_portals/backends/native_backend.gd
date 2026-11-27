@@ -52,6 +52,7 @@ func _bind(native: RefCounted) -> void:
 	_native.connect("notification_action_invoked", _on_notification_action_invoked)
 	_native.connect("portal_error", _on_portal_error)
 	_native.connect("portal_presence_changed", _on_portal_presence_changed)
+	_native.connect("game_mode_daemon_presence_changed", _on_game_mode_daemon_presence_changed)
 
 
 func get_backend_name() -> String:
@@ -222,3 +223,7 @@ func _on_portal_error(context: String, message: String) -> void:
 
 func _on_portal_presence_changed(available: bool) -> void:
 	portal_presence_changed.emit(available)
+
+
+func _on_game_mode_daemon_presence_changed(available: bool) -> void:
+	game_mode_daemon_presence_changed.emit(available)
