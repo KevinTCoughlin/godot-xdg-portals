@@ -65,6 +65,10 @@ Before 1.0 the public API may change in a minor release.
   session is already restarting. `close_request()` and the GameMode release
   on shutdown are included. A GameMode hold is kept across the gap and is not
   registered a second time when the portal returns.
+- **An unknown notification priority is rejected.** A value outside
+  `NotificationPriority` used to be clamped, so `99` was posted as `urgent`
+  and a negative value as `low`. The call now returns `false`, emits
+  `portal_error`, and sends nothing.
 - **Leaving the tree drops the backend.** GameMode holds are released, the
   backend is disconnected and shut down, and the facade forgets it. Entering
   the tree again selects a backend instead of keeping one whose session is
