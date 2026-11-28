@@ -262,6 +262,7 @@ SPDX-License-Identifier: MIT
   </div>
 </header>
 
+<main>
 <section>
   <div class="wrap">
     <h2>Why this exists</h2>
@@ -307,7 +308,7 @@ SPDX-License-Identifier: MIT
         <svg class="card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 12h4M8 10v4"/><circle cx="15" cy="11" r="1"/><circle cx="17.5" cy="13.5" r="1"/><rect x="2" y="6" width="20" height="12" rx="4"/></svg>
         <h3>GameMode</h3>
         <p class="iface">org.<wbr>freedesktop.<wbr>portal.<wbr>GameMode</p>
-        <p>Ask the host to apply CPU governor and scheduling tweaks while your game is in the foreground.</p>
+        <p>Ask the host's <code>gamemoded</code> to apply CPU governor and scheduling tweaks until you release the hold or the game exits.</p>
         <div class="api">DesktopServices.request_game_mode()</div>
       </article>
 
@@ -418,6 +419,8 @@ SPDX-License-Identifier: MIT
           <tr><td>User dismisses the "open with" dialog</td><td><code>Response.CANCELLED</code>, not a success</td></tr>
           <tr><td>Windows, mobile, web</td><td>Null backend; the addon loads and every call reports unavailable</td></tr>
           <tr><td>macOS (experimental)</td><td>Power-saver state only; the other four capabilities report unavailable</td></tr>
+          <tr><td>Portal restarts</td><td><code>has_capability()</code> is <code>false</code> while it is gone, and capabilities are re-read when it returns; calls do not block on it</td></tr>
+          <tr><td><code>gamemoded</code> restarts</td><td>The GameMode hold is registered again with the new daemon &mdash; except inside a Flatpak, which cannot see the daemon, where the hold is lost until the game is restarted</td></tr>
           <tr><td>Headless Linux, no session bus</td><td>Null backend with the reason attached, no crash</td></tr>
         </tbody>
       </table>
@@ -455,6 +458,7 @@ sudo apt-get install build-essential cmake pkg-config libglib2.0-dev
     </div>
   </div>
 </section>
+</main>
 
 <footer>
   <div class="wrap">
